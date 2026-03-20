@@ -1,0 +1,29 @@
+#ifndef STRANDSET_H
+#define STRANDSET_H
+
+#include "Strand.h"
+#include <UT/UT_BoundingBox.h>
+#include <vector>
+
+class StrandSet
+{
+public:
+    StrandSet();
+    ~StrandSet();
+
+    void addStrand(const Strand& strand);
+    Strand& getStrand(int index);
+    const Strand& getStrand(int index) const;
+
+    int getStrandCount() const;
+    UT_BoundingBox getBounds() const;
+    bool validate() const;
+    void normalizeArchLengths();
+
+private:
+    std::vector<Strand> strands;
+    mutable UT_BoundingBox cachedBounds;
+    mutable bool boundsValid;
+};
+
+#endif
