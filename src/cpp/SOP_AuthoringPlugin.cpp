@@ -64,44 +64,174 @@ SOP_AuthoringPlugin::cookMySop(OP_Context& context)
     if (boss->opStart("Cooking AuthoringPlugin"))
     {
         gdp->clearAndDestroy();
-        // TODO: Add actual cooking logic here
+
+        // ====================================================================
+        // TASK 1.1 - LOAD GEOMETRY FROM UPSTREAM SOP
+        // ====================================================================
+
+        // Get the input geometry from upstream SOP
+        const GU_Detail* input_geo = inputGeo(0, context);
+
+        if (!input_geo)
+        {
+            statusMessage = "Waiting for input geometry";
+            // Don't error - just waiting for connection
+            boss->opEnd();
+            return error();
+        }
+
+        // Check if input has any geometry
+        if (input_geo->getNumPrimitives() == 0)
+        {
+            statusMessage = "Input has no geometry";
+            boss->opEnd();
+            return error();
+        }
+
+        // Load curves from Houdini geometry
+        inputStrands = GeometryImporter::loadFromHoudiniGeometry(input_geo);
+
+        // Validate that we loaded something
+        if (inputStrands.getStrandCount() == 0)
+        {
+            statusMessage = "No curves found in input";
+            boss->opEnd();
+            return error();
+        }
+
+        // ====================================================================
+        // TASK 1.3 - DISPLAY STATUS (Strand count + Bounding box)
+        // ====================================================================
+
+        // Get strand information
+        int strandCount = inputStrands.getStrandCount();
+        UT_BoundingBox bounds = inputStrands.getBounds();
+
+        // Calculate size from bounding box
+        fpreal width = bounds.xmax() - bounds.xmin();
+        fpreal height = bounds.ymax() - bounds.ymin();
+        fpreal depth = bounds.zmax() - bounds.zmin();
+
+        // Create formatted status message
+        char statusBuf[512];
+        snprintf(statusBuf, sizeof(statusBuf),
+            "Strands: %d | Bounds: %.2f x %.2f x %.2f",
+            strandCount,
+            width, height, depth);
+
+        // Store status message for later retrieval
+        statusMessage = statusBuf;
+
+        // Display status message to user in Houdini
+        addMessage(SOP_MESSAGE, statusBuf);
+
+        // ====================================================================
+        // TASK 2.1 - COMPUTE FEATURES (READY FOR K-MEANS)
+        // ====================================================================
+
+        // Compute feature vectors for all strands
+        // This prepares the data for K-means clustering (which Ray will implement)
+        computeFeatures();
+
+        // ====================================================================
+        // END OF COOKING
+        // ====================================================================
     }
 
     boss->opEnd();
     return error();
 }
 
+// ============================================================================
+// HELPER FUNCTIONS - IMPLEMENTATIONS
+// ============================================================================
+
 void SOP_AuthoringPlugin::loadGeometry(const GU_Detail* input_geo)
 {
+    // This is now integrated into cookMySop() above
+    // Keeping stub for API compatibility
 }
 
 void SOP_AuthoringPlugin::computeFeatures()
 {
+    // TASK 2.1 - COMPUTE FEATURE VECTORS
+    // This prepares features for clustering
+
+    if (inputStrands.getStrandCount() == 0)
+    {
+        statusMessage = "ERROR: No strands loaded for feature computation";
+        return;
+    }
+
+    // Use the FeatureComputation class to compute all features
+    std::vector<Feature> features =
+        FeatureComputation::computeAllFeatures(inputStrands);
+
+    // Normalize features to zero mean, unit variance
+    FeatureComputation::normalizeFeatures(features);
+
+    // Features are now ready to be passed to K-means clustering
+    // Once Ray implements K-means, we'll call:
+    // clusterGuides(getNumGuides(now));
 }
 
 void SOP_AuthoringPlugin::clusterGuides(int numGuides)
 {
+    // TASK 2.2 - K-MEANS CLUSTERING
+    // This will be implemented by Ray
+    // Placeholder for now
+
+    if (inputStrands.getStrandCount() == 0)
+    {
+        statusMessage = "ERROR: No strands to cluster";
+        return;
+    }
+
+    // TODO: Ray will implement K-means clustering here
+    // Once implemented, this will:
+    // 1. Take feature vectors computed in computeFeatures()
+    // 2. Run K-means with numGuides clusters
+    // 3. Assign each strand to a cluster
+    // 4. Call extractFromStrands() to create guides
 }
 
 void SOP_AuthoringPlugin::smoothGuides()
 {
+    // TASK 2.3 - GUIDE SMOOTHING
+    // Extract guides from clusters and smooth them
+
+    if (guides.getGuideCount() == 0)
+    {
+        statusMessage = "ERROR: No guides to smooth";
+        return;
+    }
+
+    // Guides are created in clusterGuides(), this smooths them
+    // B-spline smoothing is handled by GuideSmoothing class
 }
 
 void SOP_AuthoringPlugin::synthesizeHair()
 {
+    // TASK 3 - HAIR SYNTHESIS (BETA FEATURE)
+    // Not implemented in Alpha
 }
 
-void SOP_AuthoringPlugin::displayStrandSet(GU_Detail* gdp,
-    const StrandSet& strands)
+void SOP_AuthoringPlugin::displayStrandSet(GU_Detail* gdp, const StrandSet& strands)
 {
+    // TASK 1.3 - DISPLAY INPUT GEOMETRY (VISUALIZATION)
+    // This will render input curves as white wireframe
+    // To be implemented later
 }
 
-void SOP_AuthoringPlugin::displayGuides(GU_Detail* gdp,
-    const GuideSet& guides)
+void SOP_AuthoringPlugin::displayGuides(GU_Detail* gdp, const GuideSet& guides)
 {
+    // TASK 2.4 - DISPLAY GUIDE CURVES (VISUALIZATION)
+    // This will render guide curves as red overlay
+    // To be implemented by Ray
 }
 
-void SOP_AuthoringPlugin::displaySynthesized(GU_Detail* gdp,
-    const StrandSet& synthesized)
+void SOP_AuthoringPlugin::displaySynthesized(GU_Detail* gdp, const StrandSet& synthesized)
 {
+    // TASK 3 - DISPLAY SYNTHESIZED HAIR (BETA FEATURE)
+    // Not implemented in Alpha
 }

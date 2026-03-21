@@ -5,6 +5,7 @@
 #include "StrandSet.h"
 #include "GuideSet.h"
 #include "GeometryImporter.h"
+#include "FeatureComputation.h"
 
 class SOP_AuthoringPlugin : public SOP_Node
 {

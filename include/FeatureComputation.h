@@ -1,20 +1,31 @@
 #ifndef FEATURE_COMPUTATION_H
 #define FEATURE_COMPUTATION_H
 
-#include "Strand.h"
 #include "StrandSet.h"
-#include <eigen-5.0.0/Eigen/Dense>
 #include <vector>
+
+// Simple feature vector - just use float arrays instead of Eigen
+struct Feature
+{
+    float values[7];  // 7D feature vector
+
+    Feature() { for (int i = 0; i < 7; ++i) values[i] = 0.0f; }
+};
 
 class FeatureComputation
 {
 public:
-    static std::vector<Eigen::VectorXf> computeAllFeatures(const StrandSet& strands);
-    static void normalizeFeatures(std::vector<Eigen::VectorXf>& features);
-    static Eigen::VectorXf computeStrandFeature(const Strand& strand);
+    // Compute feature vector for a single strand
+    static Feature computeStrandFeature(const Strand& strand);
+
+    // Compute feature vectors for all strands in a StrandSet
+    static std::vector<Feature> computeAllFeatures(const StrandSet& strands);
+
+    // Normalize features to zero mean and unit variance
+    static void normalizeFeatures(std::vector<Feature>& features);
 
 private:
-    static const int FEATURE_DIM = 7;
+    FeatureComputation();
 };
 
 #endif

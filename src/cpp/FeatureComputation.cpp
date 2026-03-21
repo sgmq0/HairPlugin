@@ -2,70 +2,98 @@
 #include <cmath>
 #include <algorithm>
 
-std::vector<Eigen::VectorXf> FeatureComputation::computeAllFeatures(
-    const StrandSet& strands)
+Feature FeatureComputation::computeStrandFeature(const Strand& strand)
 {
-    std::vector<Eigen::VectorXf> features;
-    features.reserve(strands.getStrandCount());
+    Feature feature;
+
+    // Root position (x, y, z)
+    const UT_Vector3& root = strand.positions[0];
+    feature.values[0] = root.x();
+    feature.values[1] = root.y();
+    feature.values[2] = root.z();
+
+    // Tip direction (x, y, z)
+    UT_Vector3 tipDir = strand.getTipDirection();
+    feature.values[3] = tipDir.x();
+    feature.values[4] = tipDir.y();
+    feature.values[5] = tipDir.z();
+
+    // Arc length
+    feature.values[6] = strand.arcLength;
+
+    return feature;
+}
+
+std::vector<Feature> FeatureComputation::computeAllFeatures(const StrandSet& strands)
+{
+    std::vector<Feature> features;
 
     for (int i = 0; i < strands.getStrandCount(); ++i)
     {
         const Strand& strand = strands.getStrand(i);
-        features.push_back(computeStrandFeature(strand));
+        Feature feature = computeStrandFeature(strand);
+        features.push_back(feature);
     }
-
-    normalizeFeatures(features);
 
     return features;
 }
 
-Eigen::VectorXf FeatureComputation::computeStrandFeature(const Strand& strand)
-{
-    Eigen::VectorXf feat(FEATURE_DIM);
-
-    UT_Vector3 rootPos = strand.positions.empty() ? UT_Vector3(0, 0, 0) :
-        strand.positions.front();
-    feat(0) = rootPos.x();
-    feat(1) = rootPos.y();
-    feat(2) = rootPos.z();
-
-    UT_Vector3 tipDir = strand.getTipDirection();
-    feat(3) = tipDir.x();
-    feat(4) = tipDir.y();
-    feat(5) = tipDir.z();
-
-    feat(6) = strand.arcLength;
-
-    return feat;
-}
-
-void FeatureComputation::normalizeFeatures(std::vector<Eigen::VectorXf>& features)
+void FeatureComputation::normalizeFeatures(std::vector<Feature>& features)
 {
     if (features.empty())
         return;
 
-    Eigen::VectorXf mean = Eigen::VectorXf::Zero(FEATURE_DIM);
-    for (const auto& feat : features)
-        mean += feat;
-    mean /= static_cast<float>(features.size());
+    const int featureDim = 7;
+    const int numFeatures = features.size();
 
-    Eigen::VectorXf variance = Eigen::VectorXf::Zero(FEATURE_DIM);
-    for (const auto& feat : features)
-        variance += (feat - mean).array().square().matrix();
-    variance /= static_cast<float>(features.size());
-
-    Eigen::VectorXf stddev = variance.array().sqrt();
-
-    const float EPSILON = 1e-6f;
-    for (int i = 0; i < FEATURE_DIM; ++i)
-        if (stddev(i) < EPSILON)
-            stddev(i) = 1.0f;
-
-    for (auto& feat : features)
+    // Compute mean for each dimension
+    float mean[featureDim];
+    for (int d = 0; d < featureDim; ++d)
     {
-        for (int i = 0; i < FEATURE_DIM; ++i)
+        mean[d] = 0.0f;
+    }
+
+    for (const auto& feature : features)
+    {
+        for (int d = 0; d < featureDim; ++d)
         {
-            feat(i) = (feat(i) - mean(i)) / stddev(i);
+            mean[d] += feature.values[d];
+        }
+    }
+
+    for (int d = 0; d < featureDim; ++d)
+    {
+        mean[d] /= numFeatures;
+    }
+
+    // Compute standard deviation for each dimension
+    float stdDev[featureDim];
+    for (int d = 0; d < featureDim; ++d)
+    {
+        stdDev[d] = 0.0f;
+    }
+
+    for (const auto& feature : features)
+    {
+        for (int d = 0; d < featureDim; ++d)
+        {
+            float diff = feature.values[d] - mean[d];
+            stdDev[d] += diff * diff;
+        }
+    }
+
+    for (int d = 0; d < featureDim; ++d)
+    {
+        stdDev[d] = std::sqrt(stdDev[d] / numFeatures);
+    }
+
+    // Normalize: (x - mean) / stdDev
+    for (auto& feature : features)
+    {
+        for (int d = 0; d < featureDim; ++d)
+        {
+            float divisor = (stdDev[d] > 1e-6f) ? stdDev[d] : 1e-6f;
+            feature.values[d] = (feature.values[d] - mean[d]) / divisor;
         }
     }
 }
