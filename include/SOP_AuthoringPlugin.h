@@ -40,6 +40,7 @@ private:
     void displayStrandSet(GU_Detail* gdp, const StrandSet& strands);
     void displayGuides(GU_Detail* gdp, const GuideSet& guides);
     void displaySynthesized(GU_Detail* gdp, const StrandSet& synthesized);
+    void setDisplayStrings(fpreal now, std::string strand_str, std::string bounds_str, std::string status_str);
 
     StrandSet inputStrands;
     GuideSet guides;

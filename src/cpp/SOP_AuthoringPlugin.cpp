@@ -25,8 +25,19 @@ newSopOperator(OP_OperatorTable* table)
     );
 }
 
+static PRM_Name	strandsName("strand_count", "Number of Strands");
+static PRM_Name	boundsName("bounding_box", "Bounds");
+static PRM_Name	statusName("load_status", "Status");
+
 PRM_Template
 SOP_AuthoringPlugin::myTemplateList[] = {
+
+    // strand count, bounding box, status
+    PRM_Template(PRM_STRING, 1, &strandsName, PRMzeroDefaults),
+    PRM_Template(PRM_STRING, 1, &boundsName, PRMzeroDefaults),
+    PRM_Template(PRM_STRING, 1, &statusName, PRMzeroDefaults),
+    
+    // change number of guide strands
     PRM_Template(PRM_INT, 1, new PRM_Name("num_guides", "Number of Guides"),
                  new PRM_Default(20)),
     PRM_Template()
@@ -66,12 +77,16 @@ void SOP_AuthoringPlugin::inputConnectChanged(int which_input) {
     }
 }
 
+void SOP_AuthoringPlugin::setDisplayStrings(fpreal now, std::string strand_str, std::string bounds_str, std::string status_str) {
+    setString(strand_str, CH_STRING_LITERAL, "strand_count", 0, now);
+    setString(bounds_str, CH_STRING_LITERAL, "bounding_box", 0, now);
+    setString(status_str, CH_STRING_LITERAL, "load_status", 0, now);
+}
+
 OP_ERROR
 SOP_AuthoringPlugin::cookMySop(OP_Context& context)
 {
     fpreal now = context.getTime();
-
-    //addMessage(SOP_MESSAGE, "asdjfajshdgfkhasdd");
 
     UT_Interrupt* boss = UTgetInterrupt();
 
@@ -97,6 +112,7 @@ SOP_AuthoringPlugin::cookMySop(OP_Context& context)
         {
             unlockInput(0);
             statusMessage = "Waiting for input geometry";
+            setDisplayStrings(now, 0, statusMessage, "-");
             // Don't error - just waiting for connection
             boss->opEnd();
             return error();
@@ -106,7 +122,8 @@ SOP_AuthoringPlugin::cookMySop(OP_Context& context)
         if (input_geo->getNumPrimitives() == 0)
         {
             unlockInput(0);
-            statusMessage = "Input has no geometry";
+            statusMessage = "FAILED: Input has no geometry";
+            setDisplayStrings(now, 0, statusMessage, "-");
             boss->opEnd();
             return error();
         }
@@ -124,7 +141,8 @@ SOP_AuthoringPlugin::cookMySop(OP_Context& context)
         {
             unlockInput(0);
             addMessage(SOP_MESSAGE, "u messed up 3");
-            statusMessage = "No curves found in input";
+            statusMessage = "FAILED: No curves found in input";
+            setDisplayStrings(now, 0, statusMessage, "-");
             boss->opEnd();
             return error();
         } 
@@ -158,12 +176,15 @@ SOP_AuthoringPlugin::cookMySop(OP_Context& context)
         // Display status message to user in Houdini
         addMessage(SOP_MESSAGE, statusBuf);
 
-        //// ====================================================================
-        //// TASK 2.1 - COMPUTE FEATURES (READY FOR K-MEANS)
-        //// ====================================================================
+        // set all the ui information
+        setDisplayStrings(now, std::to_string(inputStrands.getStrandCount()).c_str(), statusBuf, "OK");
 
-        //// Compute feature vectors for all strands
-        //// This prepares the data for K-means clustering (which Ray will implement)
+        // ====================================================================
+        // TASK 2.1 - COMPUTE FEATURES (READY FOR K-MEANS)
+        // ====================================================================
+
+        // Compute feature vectors for all strands
+        // This prepares the data for K-means clustering (which Ray will implement)
         //computeFeatures();
 
         // ====================================================================
