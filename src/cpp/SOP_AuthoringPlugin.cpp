@@ -5,6 +5,7 @@
 #include <OP/OP_Operator.h>
 #include <OP/OP_OperatorTable.h>
 #include <PRM/PRM_Include.h>
+#include <GEO/GEO_PrimPoly.h>
 
 #include <iostream>
 
@@ -186,6 +187,11 @@ SOP_AuthoringPlugin::cookMySop(OP_Context& context)
         // set all the ui information
         setDisplayStrings(now, std::to_string(inputStrands.getStrandCount()).c_str(), statusBuf, "OK");
 
+        // if guides are ready to display, display them
+        if (guidesReady) {
+            displayGuides(gdp, guides);
+        }
+
         // make sure to free input
         unlockInput(0);
     }
@@ -217,6 +223,8 @@ void SOP_AuthoringPlugin::onExtractGuides(fpreal t) {
     clusterGuides(getNumGuides(t), features); // task 2.2: run k means clustering
     smoothGuides(); 
 
+    guidesReady = true;
+    forceRecook();
 }
 
 std::vector<Feature> SOP_AuthoringPlugin::computeFeatures()
@@ -455,7 +463,33 @@ void SOP_AuthoringPlugin::displayGuides(GU_Detail* gdp, const GuideSet& guides)
 {
     // TASK 2.4 - DISPLAY GUIDE CURVES (VISUALIZATION)
     // This will render guide curves as red overlay
-    // To be implemented by Ray
+
+    if (!gdp) return;
+
+    // iterate over guide curves
+    for (int i = 0; i < guides.getGuideCount(); i++) {
+        const Strand& guide = guides.getGuide(i);
+        if (guide.positions.size() < 2) continue;
+
+        GA_Offset startPt = gdp->appendPointBlock(guide.positions.size());
+        for (int p = 0; p < (int) guide.positions.size(); p++) {
+            GA_Offset ptoff = startPt + p;
+            gdp->setPos3(ptoff, guide.positions[p]);
+        }
+
+        // create polygon curve
+        GEO_PrimPoly* prim = GEO_PrimPoly::build(gdp, guide.positions.size(), GU_POLY_OPEN, false);
+
+        for (int p = 0; p < (int) guide.positions.size(); p++) {
+            prim->setPointOffset(p, startPt + p);
+        }
+
+        // set primitive color
+        GA_RWHandleV3 colorHandle(gdp->addDiffuseAttribute(GA_ATTRIB_PRIMITIVE));
+        if (colorHandle.isValid()) {
+            colorHandle.set(prim->getMapOffset(), UT_Vector3(1.0f, 0.0f, 0.0f));
+        }
+    }
 }
 
 void SOP_AuthoringPlugin::displaySynthesized(GU_Detail* gdp, const StrandSet& synthesized)

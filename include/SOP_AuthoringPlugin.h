@@ -50,6 +50,9 @@ private:
     GuideSet guides;
     StrandSet synthesizedStrands;
     std::string statusMessage;
+
+    // flags
+    bool guidesReady = false;
 };
 
 #endif
