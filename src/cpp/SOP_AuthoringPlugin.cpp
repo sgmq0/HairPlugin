@@ -81,6 +81,7 @@ void SOP_AuthoringPlugin::inputConnectChanged(int which_input) {
 
     if (which_input == 0 && getInput(0)) {
         addExtraInput(getInput(0), OP_INTEREST_DATA);
+        guidesReady = false;
         forceRecook();
     }
 }
@@ -190,6 +191,11 @@ SOP_AuthoringPlugin::cookMySop(OP_Context& context)
         // if guides are ready to display, display them
         if (guidesReady) {
             displayGuides(gdp, guides);
+            addMessage(SOP_MESSAGE, "guides displayed");
+        }
+        else {
+            // show the strand set
+            displayStrandSet(gdp, inputStrands);
         }
 
         // make sure to free input
@@ -457,6 +463,27 @@ void SOP_AuthoringPlugin::displayStrandSet(GU_Detail* gdp, const StrandSet& stra
     // TASK 1.3 - DISPLAY INPUT GEOMETRY (VISUALIZATION)
     // This will render input curves as white wireframe
     // To be implemented later
+
+    if (!gdp) return;
+
+    GA_RWHandleV3 colorHandle(gdp->addDiffuseAttribute(GA_ATTRIB_PRIMITIVE));
+
+    for (int i = 0; i < strands.getStrandCount(); i++) {
+        const Strand& s = strands.getStrand(i);
+        if (s.positions.size() < 2) continue;
+
+        GA_Offset startPt = gdp->appendPointBlock(s.positions.size());
+        for (int p = 0; p < (int)s.positions.size(); p++)
+            gdp->setPos3(startPt + p, s.positions[p]);
+
+        GEO_PrimPoly* prim = GEO_PrimPoly::build(gdp, s.positions.size(), GU_POLY_OPEN, false);
+        for (int p = 0; p < (int)s.positions.size(); p++)
+            prim->setPointOffset(p, startPt + p);
+
+        // white
+        if (colorHandle.isValid())
+            colorHandle.set(prim->getMapOffset(), UT_Vector3(1.0f, 1.0f, 1.0f));
+    }
 }
 
 void SOP_AuthoringPlugin::displayGuides(GU_Detail* gdp, const GuideSet& guides)
@@ -466,29 +493,24 @@ void SOP_AuthoringPlugin::displayGuides(GU_Detail* gdp, const GuideSet& guides)
 
     if (!gdp) return;
 
+    GA_RWHandleV3 colorHandle(gdp->addDiffuseAttribute(GA_ATTRIB_PRIMITIVE));
+
     // iterate over guide curves
     for (int i = 0; i < guides.getGuideCount(); i++) {
         const Strand& guide = guides.getGuide(i);
         if (guide.positions.size() < 2) continue;
 
         GA_Offset startPt = gdp->appendPointBlock(guide.positions.size());
-        for (int p = 0; p < (int) guide.positions.size(); p++) {
-            GA_Offset ptoff = startPt + p;
-            gdp->setPos3(ptoff, guide.positions[p]);
-        }
+        for (int p = 0; p < (int)guide.positions.size(); p++)
+            gdp->setPos3(startPt + p, guide.positions[p]);
 
-        // create polygon curve
         GEO_PrimPoly* prim = GEO_PrimPoly::build(gdp, guide.positions.size(), GU_POLY_OPEN, false);
-
-        for (int p = 0; p < (int) guide.positions.size(); p++) {
+        for (int p = 0; p < (int)guide.positions.size(); p++)
             prim->setPointOffset(p, startPt + p);
-        }
 
-        // set primitive color
-        GA_RWHandleV3 colorHandle(gdp->addDiffuseAttribute(GA_ATTRIB_PRIMITIVE));
-        if (colorHandle.isValid()) {
+        // red
+        if (colorHandle.isValid())
             colorHandle.set(prim->getMapOffset(), UT_Vector3(1.0f, 0.0f, 0.0f));
-        }
     }
 }
 
