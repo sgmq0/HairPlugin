@@ -3,6 +3,8 @@
 #include <sstream>
 #include <stdexcept>
 
+#include <GEO/GEO_PrimPoly.h>
+
 std::string GeometryImporter::lastErrorMessage = "";
 
 StrandSet GeometryImporter::loadFromHoudiniGeometry(const GU_Detail* gdp)
@@ -23,7 +25,39 @@ StrandSet GeometryImporter::loadFromHoudiniGeometry(const GU_Detail* gdp)
 
     try
     {
-        // For now, just return empty - will be replaced with actual curve extraction
+        // iterate over every prim (curve)
+        for (GA_Iterator it(gdp->getPrimitiveRange()); !it.atEnd(); ++it) {
+            const GA_Primitive* prim = gdp->getPrimitive(*it);
+
+            if (prim->getTypeId() != GEO_PRIMPOLY) {
+                continue;
+            }
+
+            const GEO_PrimPoly* curve = UTverify_cast<const GEO_PrimPoly*>(prim);
+
+            // create a strand
+            Strand strand;
+            int numVerts = curve->getVertexCount();
+
+            for (size_t i = 0; i < numVerts; i++)
+            {
+                UT_Vector3 vertex = gdp->getPos3(curve->getPointOffset(i));
+                strand.positions.push_back(vertex);
+
+                strand.radius.push_back(1.0f);
+
+                if (i > 0) {
+                    float segLen = (strand.positions[i] - strand.positions[i - 1]).length();
+                    strand.arcLength += segLen;
+                }
+            }
+
+            if (strand.arcLength > 1e-6f)
+            {
+                strands.addStrand(strand);
+            }
+        }
+
         lastErrorMessage = "";
     }
     catch (const std::exception& e)

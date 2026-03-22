@@ -127,6 +127,9 @@ SOP_AuthoringPlugin::cookMySop(OP_Context& context)
             statusMessage = "No curves found in input";
             boss->opEnd();
             return error();
+        } 
+        else {
+            addMessage(SOP_MESSAGE, std::to_string(inputStrands.getStrandCount()).c_str());
         }
 
         // ====================================================================
@@ -155,13 +158,13 @@ SOP_AuthoringPlugin::cookMySop(OP_Context& context)
         // Display status message to user in Houdini
         addMessage(SOP_MESSAGE, statusBuf);
 
-        // ====================================================================
-        // TASK 2.1 - COMPUTE FEATURES (READY FOR K-MEANS)
-        // ====================================================================
+        //// ====================================================================
+        //// TASK 2.1 - COMPUTE FEATURES (READY FOR K-MEANS)
+        //// ====================================================================
 
-        // Compute feature vectors for all strands
-        // This prepares the data for K-means clustering (which Ray will implement)
-        computeFeatures();
+        //// Compute feature vectors for all strands
+        //// This prepares the data for K-means clustering (which Ray will implement)
+        //computeFeatures();
 
         // ====================================================================
         // END OF COOKING
