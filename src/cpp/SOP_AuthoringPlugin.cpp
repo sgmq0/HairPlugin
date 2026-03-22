@@ -6,6 +6,8 @@
 #include <OP/OP_OperatorTable.h>
 #include <PRM/PRM_Include.h>
 
+#include <iostream>
+
 #include "SOP_AuthoringPlugin.h"
 
 void
@@ -54,10 +56,22 @@ SOP_AuthoringPlugin::disableParms()
     return 0;
 }
 
+void SOP_AuthoringPlugin::inputConnectChanged(int which_input) {
+    //parent
+    SOP_Node::inputConnectChanged(which_input);
+
+    if (which_input == 0 && getInput(0)) {
+        addExtraInput(getInput(0), OP_INTEREST_DATA);
+        forceRecook();
+    }
+}
+
 OP_ERROR
 SOP_AuthoringPlugin::cookMySop(OP_Context& context)
 {
     fpreal now = context.getTime();
+
+    //addMessage(SOP_MESSAGE, "asdjfajshdgfkhasdd");
 
     UT_Interrupt* boss = UTgetInterrupt();
 
@@ -69,11 +83,19 @@ SOP_AuthoringPlugin::cookMySop(OP_Context& context)
         // TASK 1.1 - LOAD GEOMETRY FROM UPSTREAM SOP
         // ====================================================================
 
+        // lock the input so it's safe to access
+        if (lockInput(0, context) >= UT_ERROR_ABORT)
+        {
+            boss->opEnd();
+            return error();
+        }
+
         // Get the input geometry from upstream SOP
         const GU_Detail* input_geo = inputGeo(0, context);
 
         if (!input_geo)
         {
+            unlockInput(0);
             statusMessage = "Waiting for input geometry";
             // Don't error - just waiting for connection
             boss->opEnd();
@@ -83,6 +105,7 @@ SOP_AuthoringPlugin::cookMySop(OP_Context& context)
         // Check if input has any geometry
         if (input_geo->getNumPrimitives() == 0)
         {
+            unlockInput(0);
             statusMessage = "Input has no geometry";
             boss->opEnd();
             return error();
@@ -91,9 +114,16 @@ SOP_AuthoringPlugin::cookMySop(OP_Context& context)
         // Load curves from Houdini geometry
         inputStrands = GeometryImporter::loadFromHoudiniGeometry(input_geo);
 
+        if (!GeometryImporter::getLastError().empty())
+        {
+            addMessage(SOP_MESSAGE, GeometryImporter::getLastError().c_str());
+        }
+
         // Validate that we loaded something
         if (inputStrands.getStrandCount() == 0)
         {
+            unlockInput(0);
+            addMessage(SOP_MESSAGE, "u messed up 3");
             statusMessage = "No curves found in input";
             boss->opEnd();
             return error();
@@ -136,6 +166,9 @@ SOP_AuthoringPlugin::cookMySop(OP_Context& context)
         // ====================================================================
         // END OF COOKING
         // ====================================================================
+
+        // make sure to free input
+        unlockInput(0);
     }
 
     boss->opEnd();

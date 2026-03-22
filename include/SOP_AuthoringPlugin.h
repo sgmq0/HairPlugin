@@ -21,6 +21,9 @@ protected:
     virtual unsigned disableParms();
     virtual OP_ERROR cookMySop(OP_Context& context);
 
+    // callback for whenever an input is connected/disconnected
+    void inputConnectChanged(int which_input) override;
+
 public:
     int getNumGuides(fpreal t = 0) const
     {
