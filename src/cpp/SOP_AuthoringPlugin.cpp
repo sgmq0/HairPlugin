@@ -31,6 +31,14 @@ static PRM_Name	boundsName("bounding_box", "Bounds");
 static PRM_Name	statusName("load_status", "Status");
 static PRM_Name	extractGuides("extract_guides", "Extract Guides");
 
+static PRM_Name numGuidesName("num_guides", "Number of Guides");
+static PRM_Range numGuidesRange(PRM_RANGE_RESTRICTED, 0, PRM_RANGE_UI, 100);
+
+static PRM_Name radiusName("clump_radius", "Clump Radius");
+static PRM_Name tightnessName("clump_tightness", "Clump Tightness");
+static PRM_Name countName("clump_count", "Clump Count");
+static PRM_Range countRange(PRM_RANGE_RESTRICTED, 0, PRM_RANGE_UI, 100);
+
 PRM_Template
 SOP_AuthoringPlugin::myTemplateList[] = {
 
@@ -42,11 +50,17 @@ SOP_AuthoringPlugin::myTemplateList[] = {
     PRM_Template(PRM_SEPARATOR, 1, new PRM_Name("sep1", "Sep1")),
 
     // change number of guide strands
-    PRM_Template(PRM_INT, 1, new PRM_Name("num_guides", "Number of Guides"),
-                 new PRM_Default(20)),
+    PRM_Template(PRM_INT, 1, &numGuidesName, new PRM_Default(20), 0, &numGuidesRange),
     PRM_Template(PRM_CALLBACK, 1, &extractGuides, nullptr, 0, nullptr, &SOP_AuthoringPlugin::onExtractGuidesCallback),
 
     PRM_Template(PRM_SEPARATOR, 1, new PRM_Name("sep2", "Sep2")),
+
+    // clump parameters
+    PRM_Template(PRM_FLT, 1, &radiusName, new PRM_Default(1.0)),
+    PRM_Template(PRM_FLT, 1, &tightnessName, new PRM_Default(1.0)),
+    PRM_Template(PRM_INT, 1, &countName, new PRM_Default(20), 0, &countRange),
+
+    // clump operation parameters
 
     PRM_Template()
 };
