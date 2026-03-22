@@ -7,9 +7,11 @@
 // Simple feature vector - just use float arrays instead of Eigen
 struct Feature
 {
-    float values[7];  // 7D feature vector
+    std::array<float,7> values;  // 7D feature vector
 
     Feature() { for (int i = 0; i < 7; ++i) values[i] = 0.0f; }
+
+    float featureDistance(const Feature& b); // helper function to calc the distance between two feature vectors
 };
 
 class FeatureComputation

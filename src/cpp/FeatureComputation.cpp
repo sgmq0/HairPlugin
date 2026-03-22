@@ -2,6 +2,18 @@
 #include <cmath>
 #include <algorithm>
 
+float Feature::featureDistance(const Feature& b)
+{
+    float dist = 0.0f;
+    for (int d = 0; d < (int)values.size(); ++d)
+    {
+        float diff = values[d] - b.values[d];
+        dist += diff * diff;
+    }
+
+    return std::sqrt(dist);
+}
+
 Feature FeatureComputation::computeStrandFeature(const Strand& strand)
 {
     Feature feature;

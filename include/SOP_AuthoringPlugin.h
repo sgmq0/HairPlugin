@@ -32,15 +32,19 @@ public:
     const char* getStatusMessage() const { return statusMessage.c_str(); }
 
 private:
-    void loadGeometry(const GU_Detail* input_geo);
-    void computeFeatures();
-    void clusterGuides(int numGuides);
-    void smoothGuides();
-    void synthesizeHair();
     void displayStrandSet(GU_Detail* gdp, const StrandSet& strands);
     void displayGuides(GU_Detail* gdp, const GuideSet& guides);
     void displaySynthesized(GU_Detail* gdp, const StrandSet& synthesized);
+
     void setDisplayStrings(fpreal now, std::string strand_str, std::string bounds_str, std::string status_str);
+
+    // function that does all of step 2
+    static int onExtractGuidesCallback(void* data, int index, fpreal t, const PRM_Template*);
+    void onExtractGuides(fpreal t);
+    std::vector<Feature> computeFeatures();
+    void clusterGuides(int numGuides, std::vector<Feature> features);
+    void smoothGuides();
+    void synthesizeHair();
 
     StrandSet inputStrands;
     GuideSet guides;
