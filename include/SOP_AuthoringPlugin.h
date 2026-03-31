@@ -6,6 +6,7 @@
 #include "GuideSet.h"
 #include "GeometryImporter.h"
 #include "FeatureComputation.h"
+#include "GuideSmoothing.h"
 
 class SOP_AuthoringPlugin : public SOP_Node
 {
@@ -44,7 +45,7 @@ private:
     std::vector<Feature> computeFeatures();
     void clusterGuides(int numGuides, std::vector<Feature> features);
     void smoothGuides();
-    void synthesizeHair();
+    void synthesizeHair(fpreal t);
 
     StrandSet inputStrands;
     GuideSet guides;

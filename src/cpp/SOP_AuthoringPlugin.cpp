@@ -206,11 +206,13 @@ SOP_AuthoringPlugin::cookMySop(OP_Context& context)
         if (guidesReady) {
             displayGuides(gdp, guides);
             addMessage(SOP_MESSAGE, "guides displayed");
+
+            // synthesize new strands
+            synthesizeHair(now);
         }
-        else {
-            // show the strand set
-            displayStrandSet(gdp, inputStrands);
-        }
+
+        // show the strand set
+        displayStrandSet(gdp, inputStrands);
 
         // make sure to free input
         unlockInput(0);
@@ -406,7 +408,7 @@ void SOP_AuthoringPlugin::clusterGuides(int numGuides, std::vector<Feature> feat
             }
             else
             {
-                // Empty cluster - reinitialize to a random strand
+                // empty cluster
                 newCenters[c] = features[std::rand() % numStrands].values;
             }
         }
@@ -441,8 +443,12 @@ void SOP_AuthoringPlugin::clusterGuides(int numGuides, std::vector<Feature> feat
         }
 
         Strand& s = inputStrands.getStrand(bestStrand);
-        s.clusterID = c;
-        guideStrands.push_back(s);
+
+        // apply smoothing
+        Strand smoothed = GuideSmoothing::smoothGuideCurve(s, 20);
+
+        smoothed.clusterID = c;
+        guideStrands.push_back(smoothed);
     }
 
     guides.extractFromStrands(guideStrands, k);
@@ -466,10 +472,18 @@ void SOP_AuthoringPlugin::smoothGuides()
     // B-spline smoothing is handled by GuideSmoothing class
 }
 
-void SOP_AuthoringPlugin::synthesizeHair()
+void SOP_AuthoringPlugin::synthesizeHair(fpreal t)
 {
     // TASK 3 - HAIR SYNTHESIS (BETA FEATURE)
     // Not implemented in Alpha
+
+    float clump_radius = evalFloat("clump_radius", 0, t);
+    float clump_tightness = evalFloat("clump_tightness", 0, t);
+    float clump_count = evalInt("clump_count", 0, t);
+
+
+
+    addMessage(SOP_MESSAGE, "synthesize hair complete");
 }
 
 void SOP_AuthoringPlugin::displayStrandSet(GU_Detail* gdp, const StrandSet& strands)
