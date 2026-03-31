@@ -212,6 +212,7 @@ SOP_AuthoringPlugin::cookMySop(OP_Context& context)
         }
 
         // show the strand set
+        // change to synthesizedStrands later
         displayStrandSet(gdp, inputStrands);
 
         // make sure to free input
@@ -244,6 +245,9 @@ void SOP_AuthoringPlugin::onExtractGuides(fpreal t) {
     std::vector<Feature> features = computeFeatures(); // task 2.1: feature vector computation
     clusterGuides(getNumGuides(t), features); // task 2.2: run k means clustering
     smoothGuides(); 
+
+    // compute kd tree of guides
+    closestGuides.fillKDTree(guides);
 
     guidesReady = true;
     forceRecook();
@@ -481,7 +485,7 @@ void SOP_AuthoringPlugin::synthesizeHair(fpreal t)
     float clump_tightness = evalFloat("clump_tightness", 0, t);
     float clump_count = evalInt("clump_count", 0, t);
 
-
+    // 1. construct kd-tree with closestguides.cpp
 
     addMessage(SOP_MESSAGE, "synthesize hair complete");
 }

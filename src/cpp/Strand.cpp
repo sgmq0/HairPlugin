@@ -130,3 +130,8 @@ float Strand::computeAverageCurvature() const
 
     return (count > 0) ? totalCurvature / count : 0.0f;
 }
+
+UT_Vector3 Strand::getRoot() const
+{
+    return positions.front();
+}

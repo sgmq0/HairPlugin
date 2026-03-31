@@ -21,6 +21,7 @@ struct Strand
     UT_Vector3 getTipDirection() const;
     float computeAverageRadius() const;
     float computeAverageCurvature() const;
+    UT_Vector3 getRoot() const;
 };
 
 #endif

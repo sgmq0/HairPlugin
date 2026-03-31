@@ -7,6 +7,7 @@
 #include "GeometryImporter.h"
 #include "FeatureComputation.h"
 #include "GuideSmoothing.h"
+#include "ClosestGuides.h"
 
 class SOP_AuthoringPlugin : public SOP_Node
 {
@@ -51,6 +52,8 @@ private:
     GuideSet guides;
     StrandSet synthesizedStrands;
     std::string statusMessage;
+
+    ClosestGuides closestGuides;
 
     // flags
     bool guidesReady = false;
