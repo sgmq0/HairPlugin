@@ -34,23 +34,31 @@ public:
     const char* getStatusMessage() const { return statusMessage.c_str(); }
 
 private:
+
+    // display functions
     void displayStrandSet(GU_Detail* gdp, const StrandSet& strands);
     void displayGuides(GU_Detail* gdp, const GuideSet& guides);
     void displaySynthesized(GU_Detail* gdp, const StrandSet& synthesized);
-
     void setDisplayStrings(fpreal now, std::string strand_str, std::string bounds_str, std::string status_str);
 
-    // function that does all of step 2
+    // callback: extract guide strands when clicked
     static int onExtractGuidesCallback(void* data, int index, fpreal t, const PRM_Template*);
     void onExtractGuides(fpreal t);
-    std::vector<Feature> computeFeatures();
-    void clusterGuides(int numGuides, std::vector<Feature> features);
-    void smoothGuides();
-    void synthesizeHair(fpreal t);
 
-    StrandSet inputStrands;
-    GuideSet guides;
-    StrandSet synthesizedStrands;
+    // callback: synthesize new strands when clicked.
+    static int onSynthesizeStrandsCallback(void* data, int index, fpreal t, const PRM_Template*);
+    void onSynthesizeStrands(fpreal t);
+
+    void extractRootsFromInputStrands();    // runs after geometry loading; populates strandRoots
+
+    std::vector<Feature> computeFeatures();                             // step 2.1: feature vector computation
+    void clusterGuides(int numGuides, std::vector<Feature> features);   // step 2.2: k-means clustering
+    void smoothGuides();                                                // step 2.3: guide smoothing. TODO: is this implemented correctly...? check later
+
+    StrandSet inputStrands;                 // input curves
+    std::vector<UT_Vector3> strandRoots;    // vector storing all the root positions of input curves. 
+    GuideSet guides;                        // guides generated with onExtractGuides
+    StrandSet synthesizedStrands;           // strands synthesized with onSynthesizeStrands
     std::string statusMessage;
 
     ClosestGuides closestGuides;

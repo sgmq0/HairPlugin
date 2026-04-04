@@ -29,10 +29,11 @@ newSopOperator(OP_OperatorTable* table)
 static PRM_Name	strandsName("strand_count", "Number of Strands");
 static PRM_Name	boundsName("bounding_box", "Bounds");
 static PRM_Name	statusName("load_status", "Status");
-static PRM_Name	extractGuides("extract_guides", "Extract Guides");
 
 static PRM_Name numGuidesName("num_guides", "Number of Guides");
 static PRM_Range numGuidesRange(PRM_RANGE_RESTRICTED, 0, PRM_RANGE_UI, 100);
+static PRM_Name	extractGuides("extract_guides", "Extract Guides");
+static PRM_Name	synthesizeStrands("synthesize_strands", "Synthesize New Strands");
 
 static PRM_Name radiusName("clump_radius", "Clump Radius");
 static PRM_Name tightnessName("clump_tightness", "Clump Tightness");
@@ -52,6 +53,7 @@ SOP_AuthoringPlugin::myTemplateList[] = {
     // change number of guide strands
     PRM_Template(PRM_INT, 1, &numGuidesName, new PRM_Default(20), 0, &numGuidesRange),
     PRM_Template(PRM_CALLBACK, 1, &extractGuides, nullptr, 0, nullptr, &SOP_AuthoringPlugin::onExtractGuidesCallback),
+    PRM_Template(PRM_CALLBACK, 1, &synthesizeStrands, nullptr, 0, nullptr, &SOP_AuthoringPlugin::onSynthesizeStrandsCallback),
 
     PRM_Template(PRM_SEPARATOR, 1, new PRM_Name("sep2", "Sep2")),
 
@@ -170,6 +172,7 @@ SOP_AuthoringPlugin::cookMySop(OP_Context& context)
             return error();
         } 
         else {
+            extractRootsFromInputStrands();
             addMessage(SOP_MESSAGE, std::to_string(inputStrands.getStrandCount()).c_str());
         }
 
@@ -206,9 +209,6 @@ SOP_AuthoringPlugin::cookMySop(OP_Context& context)
         if (guidesReady) {
             displayGuides(gdp, guides);
             addMessage(SOP_MESSAGE, "guides displayed");
-
-            // synthesize new strands
-            synthesizeHair(now);
         }
 
         // show the strand set
@@ -223,12 +223,10 @@ SOP_AuthoringPlugin::cookMySop(OP_Context& context)
     return error();
 }
 
-// ============================================================================
-// HELPER FUNCTIONS - IMPLEMENTATIONS
-// ============================================================================
+// ----------------- callback functions for UI buttons ------------------
 
 int SOP_AuthoringPlugin::onExtractGuidesCallback(void* data, int index, fpreal t, const PRM_Template*) {
-    // just a container for onExtractGuides, since this is static
+    // just a container for extractGuides, since this is static
 
     SOP_AuthoringPlugin* sop = static_cast<SOP_AuthoringPlugin*>(data);
     if (!sop) return 0;
@@ -251,6 +249,43 @@ void SOP_AuthoringPlugin::onExtractGuides(fpreal t) {
 
     guidesReady = true;
     forceRecook();
+}
+
+int SOP_AuthoringPlugin::onSynthesizeStrandsCallback(void* data, int index, fpreal t, const PRM_Template*)
+{
+    SOP_AuthoringPlugin* sop = static_cast<SOP_AuthoringPlugin*>(data);
+    if (!sop) return 0;
+
+    sop->onSynthesizeStrands(t);
+
+    return 1;
+}
+
+void SOP_AuthoringPlugin::onSynthesizeStrands(fpreal t)
+{
+    // TASK 3 - HAIR SYNTHESIS (BETA FEATURE)
+    // Not implemented in Alpha
+
+    float clump_radius = evalFloat("clump_radius", 0, t);
+    float clump_tightness = evalFloat("clump_tightness", 0, t);
+    float clump_count = evalInt("clump_count", 0, t);
+
+    // 1. construct kd-tree with closestguides.cpp
+
+    addMessage(SOP_MESSAGE, "synthesize hair complete");
+}
+
+// ============================================================================
+// HELPER FUNCTIONS - IMPLEMENTATIONS
+// ============================================================================
+
+void SOP_AuthoringPlugin::extractRootsFromInputStrands()
+{
+    addMessage(SOP_MESSAGE, "Extract roots!!!");
+
+    for (int i = 0; i < inputStrands.getStrandCount(); i++) {
+        strandRoots.push_back(inputStrands.getStrand(i).getRoot());
+    }
 }
 
 std::vector<Feature> SOP_AuthoringPlugin::computeFeatures()
@@ -278,7 +313,7 @@ std::vector<Feature> SOP_AuthoringPlugin::computeFeatures()
 
 void SOP_AuthoringPlugin::clusterGuides(int numGuides, std::vector<Feature> features)
 {
-    // TASK 2.2 - K-MEANS CLUSTERING
+    // K-MEANS CLUSTERING
     // implemented by ray
     // doing k means clustering manually
     // 1. Take feature vectors computed in computeFeatures()
@@ -474,20 +509,6 @@ void SOP_AuthoringPlugin::smoothGuides()
 
     // Guides are created in clusterGuides(), this smooths them
     // B-spline smoothing is handled by GuideSmoothing class
-}
-
-void SOP_AuthoringPlugin::synthesizeHair(fpreal t)
-{
-    // TASK 3 - HAIR SYNTHESIS (BETA FEATURE)
-    // Not implemented in Alpha
-
-    float clump_radius = evalFloat("clump_radius", 0, t);
-    float clump_tightness = evalFloat("clump_tightness", 0, t);
-    float clump_count = evalInt("clump_count", 0, t);
-
-    // 1. construct kd-tree with closestguides.cpp
-
-    addMessage(SOP_MESSAGE, "synthesize hair complete");
 }
 
 void SOP_AuthoringPlugin::displayStrandSet(GU_Detail* gdp, const StrandSet& strands)
