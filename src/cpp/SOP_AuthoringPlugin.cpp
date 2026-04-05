@@ -32,8 +32,8 @@ static PRM_Name	statusName("load_status", "Status");
 
 static PRM_Name numGuidesName("num_guides", "Number of Guides");
 static PRM_Range numGuidesRange(PRM_RANGE_RESTRICTED, 0, PRM_RANGE_UI, 100);
-static PRM_Name	extractGuides("extract_guides", "Extract Guides");
-static PRM_Name	synthesizeStrands("synthesize_strands", "Synthesize New Strands");
+static PRM_Name	extractGuidesBtn("extract_guides", "Extract Guides");
+static PRM_Name	synthesizeHairBtn("synthesize_strands", "Synthesize New Strands");
 
 static PRM_Name radiusName("clump_radius", "Clump Radius");
 static PRM_Name tightnessName("clump_tightness", "Clump Tightness");
@@ -52,8 +52,8 @@ SOP_AuthoringPlugin::myTemplateList[] = {
 
     // change number of guide strands
     PRM_Template(PRM_INT, 1, &numGuidesName, new PRM_Default(20), 0, &numGuidesRange),
-    PRM_Template(PRM_CALLBACK, 1, &extractGuides, nullptr, 0, nullptr, &SOP_AuthoringPlugin::onExtractGuidesCallback),
-    PRM_Template(PRM_CALLBACK, 1, &synthesizeStrands, nullptr, 0, nullptr, &SOP_AuthoringPlugin::onSynthesizeStrandsCallback),
+    PRM_Template(PRM_CALLBACK, 1, &extractGuidesBtn, nullptr, 0, nullptr, &SOP_AuthoringPlugin::onExtractGuidesCallback),
+    PRM_Template(PRM_CALLBACK, 1, &synthesizeHairBtn, nullptr, 0, nullptr, &SOP_AuthoringPlugin::onSynthesizeHairCallback),
 
     PRM_Template(PRM_SEPARATOR, 1, new PRM_Name("sep2", "Sep2")),
 
@@ -97,7 +97,20 @@ void SOP_AuthoringPlugin::inputConnectChanged(int which_input) {
 
     if (which_input == 0 && getInput(0)) {
         addExtraInput(getInput(0), OP_INTEREST_DATA);
+
+        // reset 
+        // scuffed? do this properly
+        inputStrands = StrandSet();
+        strandRoots.clear();
+        guides = GuideSet();
+        synthesizedStrands = StrandSet();
+        statusMessage = "";
+
+        // reset flags
+        inputLoaded = false;
         guidesReady = false;
+        synthesizeHairReady = false;
+
         forceRecook();
     }
 }
@@ -119,10 +132,6 @@ SOP_AuthoringPlugin::cookMySop(OP_Context& context)
     {
         gdp->clearAndDestroy();
 
-        // ====================================================================
-        // TASK 1.1 - LOAD GEOMETRY FROM UPSTREAM SOP
-        // ====================================================================
-
         // lock the input so it's safe to access
         if (lockInput(0, context) >= UT_ERROR_ABORT)
         {
@@ -130,80 +139,83 @@ SOP_AuthoringPlugin::cookMySop(OP_Context& context)
             return error();
         }
 
-        // Get the input geometry from upstream SOP
-        const GU_Detail* input_geo = inputGeo(0, context);
+        if (!inputLoaded) {
+            // =========== TASK 1.1 - LOAD GEOMETRY FROM UPSTREAM SOP ===========
 
-        if (!input_geo)
-        {
-            unlockInput(0);
-            statusMessage = "Waiting for input geometry";
-            setDisplayStrings(now, 0, statusMessage, "-");
-            // Don't error - just waiting for connection
-            boss->opEnd();
-            return error();
+            // Get the input geometry from upstream SOP
+            const GU_Detail* input_geo = inputGeo(0, context);
+
+            if (!input_geo)
+            {
+                unlockInput(0);
+                statusMessage = "Waiting for input geometry";
+                setDisplayStrings(now, 0, statusMessage, "-");
+                // Don't error - just waiting for connection
+                boss->opEnd();
+                return error();
+            }
+
+            // Check if input has any geometry
+            if (input_geo->getNumPrimitives() == 0)
+            {
+                unlockInput(0);
+                statusMessage = "FAILED: Input has no geometry";
+                setDisplayStrings(now, 0, statusMessage, "-");
+                boss->opEnd();
+                return error();
+            }
+
+            // Load curves from Houdini geometry
+            inputStrands = GeometryImporter::loadFromHoudiniGeometry(input_geo);
+
+            if (!GeometryImporter::getLastError().empty())
+            {
+                addMessage(SOP_MESSAGE, GeometryImporter::getLastError().c_str());
+            }
+
+            // Validate that we loaded something
+            if (inputStrands.getStrandCount() == 0)
+            {
+                unlockInput(0);
+                addMessage(SOP_MESSAGE, "u messed up 3");
+                statusMessage = "FAILED: No curves found in input";
+                setDisplayStrings(now, 0, statusMessage, "-");
+                boss->opEnd();
+                return error();
+            }
+            else {
+                addMessage(SOP_MESSAGE, std::to_string(inputStrands.getStrandCount()).c_str());
+            }
+
+            // =========== TASK 1.3 - DISPLAY STATUS (Strand count + Bounding box) ===========
+
+            // Get strand information
+            int strandCount = inputStrands.getStrandCount();
+            UT_BoundingBox bounds = inputStrands.getBounds();
+
+            // Calculate size from bounding box
+            fpreal width = bounds.xmax() - bounds.xmin();
+            fpreal height = bounds.ymax() - bounds.ymin();
+            fpreal depth = bounds.zmax() - bounds.zmin();
+
+            // Create formatted status message
+            char statusBuf[512];
+            snprintf(statusBuf, sizeof(statusBuf),
+                "Strands: %d | Bounds: %.2f x %.2f x %.2f",
+                strandCount,
+                width, height, depth);
+
+            // Store status message for later retrieval
+            statusMessage = statusBuf;
+
+            // Display status message to user in Houdini
+            addMessage(SOP_MESSAGE, statusBuf);
+
+            // set all the ui information
+            setDisplayStrings(now, std::to_string(inputStrands.getStrandCount()).c_str(), statusBuf, "OK");
+
+            inputLoaded = true; 
         }
-
-        // Check if input has any geometry
-        if (input_geo->getNumPrimitives() == 0)
-        {
-            unlockInput(0);
-            statusMessage = "FAILED: Input has no geometry";
-            setDisplayStrings(now, 0, statusMessage, "-");
-            boss->opEnd();
-            return error();
-        }
-
-        // Load curves from Houdini geometry
-        inputStrands = GeometryImporter::loadFromHoudiniGeometry(input_geo);
-
-        if (!GeometryImporter::getLastError().empty())
-        {
-            addMessage(SOP_MESSAGE, GeometryImporter::getLastError().c_str());
-        }
-
-        // Validate that we loaded something
-        if (inputStrands.getStrandCount() == 0)
-        {
-            unlockInput(0);
-            addMessage(SOP_MESSAGE, "u messed up 3");
-            statusMessage = "FAILED: No curves found in input";
-            setDisplayStrings(now, 0, statusMessage, "-");
-            boss->opEnd();
-            return error();
-        } 
-        else {
-            extractRootsFromInputStrands();
-            addMessage(SOP_MESSAGE, std::to_string(inputStrands.getStrandCount()).c_str());
-        }
-
-        // ====================================================================
-        // TASK 1.3 - DISPLAY STATUS (Strand count + Bounding box)
-        // ====================================================================
-
-        // Get strand information
-        int strandCount = inputStrands.getStrandCount();
-        UT_BoundingBox bounds = inputStrands.getBounds();
-
-        // Calculate size from bounding box
-        fpreal width = bounds.xmax() - bounds.xmin();
-        fpreal height = bounds.ymax() - bounds.ymin();
-        fpreal depth = bounds.zmax() - bounds.zmin();
-
-        // Create formatted status message
-        char statusBuf[512];
-        snprintf(statusBuf, sizeof(statusBuf),
-            "Strands: %d | Bounds: %.2f x %.2f x %.2f",
-            strandCount,
-            width, height, depth);
-
-        // Store status message for later retrieval
-        statusMessage = statusBuf;
-
-        // Display status message to user in Houdini
-        addMessage(SOP_MESSAGE, statusBuf);
-
-        // set all the ui information
-        setDisplayStrings(now, std::to_string(inputStrands.getStrandCount()).c_str(), statusBuf, "OK");
 
         // if guides are ready to display, display them
         if (guidesReady) {
@@ -211,9 +223,14 @@ SOP_AuthoringPlugin::cookMySop(OP_Context& context)
             addMessage(SOP_MESSAGE, "guides displayed");
         }
 
-        // show the strand set
-        // change to synthesizedStrands later
-        displayStrandSet(gdp, inputStrands);
+        if (synthesizeHairReady) {
+            displayStrandSet(gdp, synthesizedStrands);
+            addMessage(SOP_MESSAGE, ("Number of synthesized strands: " + std::to_string(synthesizedStrands.getStrandCount())).c_str());
+        }
+
+        if (!guidesReady && !synthesizeHairReady) {
+            displayStrandSet(gdp, inputStrands);
+        }
 
         // make sure to free input
         unlockInput(0);
@@ -251,28 +268,24 @@ void SOP_AuthoringPlugin::onExtractGuides(fpreal t) {
     forceRecook();
 }
 
-int SOP_AuthoringPlugin::onSynthesizeStrandsCallback(void* data, int index, fpreal t, const PRM_Template*)
+int SOP_AuthoringPlugin::onSynthesizeHairCallback(void* data, int index, fpreal t, const PRM_Template*)
 {
     SOP_AuthoringPlugin* sop = static_cast<SOP_AuthoringPlugin*>(data);
     if (!sop) return 0;
 
-    sop->onSynthesizeStrands(t);
+    sop->onSynthesizeHair(t);
 
     return 1;
 }
 
-void SOP_AuthoringPlugin::onSynthesizeStrands(fpreal t)
+void SOP_AuthoringPlugin::onSynthesizeHair(fpreal t)
 {
-    // TASK 3 - HAIR SYNTHESIS (BETA FEATURE)
-    // Not implemented in Alpha
+    extractRootsFromInputStrands();
+    synthesizeHair();
 
-    float clump_radius = evalFloat("clump_radius", 0, t);
-    float clump_tightness = evalFloat("clump_tightness", 0, t);
-    float clump_count = evalInt("clump_count", 0, t);
-
-    // 1. construct kd-tree with closestguides.cpp
-
-    addMessage(SOP_MESSAGE, "synthesize hair complete");
+    // mark strands as ready to synthesize and recook
+    synthesizeHairReady = true;
+    forceRecook();
 }
 
 // ============================================================================
@@ -281,11 +294,55 @@ void SOP_AuthoringPlugin::onSynthesizeStrands(fpreal t)
 
 void SOP_AuthoringPlugin::extractRootsFromInputStrands()
 {
-    addMessage(SOP_MESSAGE, "Extract roots!!!");
-
+    strandRoots.clear();
     for (int i = 0; i < inputStrands.getStrandCount(); i++) {
         strandRoots.push_back(inputStrands.getStrand(i).getRoot());
     }
+}
+
+void SOP_AuthoringPlugin::synthesizeHair()
+{
+    synthesizedStrands.clear();
+
+    // default line
+    std::vector<UT_Vector3> vertices;
+    for (int i = 0; i < 10; i++) {
+        vertices.push_back(UT_Vector3(0, i / 10.0f, 0));
+    }
+
+    // populate synthesizedStrands
+    for (size_t i = 0; i < strandRoots.size(); i++) {
+        Strand strand;
+        UT_Vector3 root = strandRoots.at(i);
+
+        // find strand's position vector and radius vector
+        for (size_t j = 0; j < vertices.size(); ++j)
+        {
+            strand.positions.push_back(vertices[j] + root);
+            strand.radius.push_back(1.0f);
+        }
+
+        // figure out arclength
+        strand.arcLength = 0.0f;
+        for (size_t j = 1; j < strand.positions.size(); j++)
+        {
+            float segLen = (strand.positions[j] - strand.positions[j - 1]).length();
+            strand.arcLength += segLen;
+        }
+
+        if (strand.arcLength > 1e-6f)
+        {
+            synthesizedStrands.addStrand(strand);
+        }
+    }    
+
+    // TASK 3 - HAIR SYNTHESIS (BETA FEATURE)
+
+   /*float clump_radius = evalFloat("clump_radius", 0, t);
+   float clump_tightness = evalFloat("clump_tightness", 0, t);
+   float clump_count = evalInt("clump_count", 0, t);*/
+
+
 }
 
 std::vector<Feature> SOP_AuthoringPlugin::computeFeatures()

@@ -19,6 +19,7 @@ public:
     UT_BoundingBox getBounds() const;
     bool validate() const;
     void normalizeArchLengths();
+    void clear();
 
 private:
     std::vector<Strand> strands;

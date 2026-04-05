@@ -99,3 +99,7 @@ void StrandSet::normalizeArchLengths()
         }
     }
 }
+
+void StrandSet::clear() {
+    strands.clear();
+}

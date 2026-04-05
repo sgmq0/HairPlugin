@@ -46,25 +46,28 @@ private:
     void onExtractGuides(fpreal t);
 
     // callback: synthesize new strands when clicked.
-    static int onSynthesizeStrandsCallback(void* data, int index, fpreal t, const PRM_Template*);
-    void onSynthesizeStrands(fpreal t);
-
-    void extractRootsFromInputStrands();    // runs after geometry loading; populates strandRoots
+    static int onSynthesizeHairCallback(void* data, int index, fpreal t, const PRM_Template*);
+    void onSynthesizeHair(fpreal t);
 
     std::vector<Feature> computeFeatures();                             // step 2.1: feature vector computation
     void clusterGuides(int numGuides, std::vector<Feature> features);   // step 2.2: k-means clustering
     void smoothGuides();                                                // step 2.3: guide smoothing. TODO: is this implemented correctly...? check later
 
+    void extractRootsFromInputStrands();    // runs when synthesize button is clicked
+    void synthesizeHair();
+
     StrandSet inputStrands;                 // input curves
     std::vector<UT_Vector3> strandRoots;    // vector storing all the root positions of input curves. 
     GuideSet guides;                        // guides generated with onExtractGuides
-    StrandSet synthesizedStrands;           // strands synthesized with onSynthesizeStrands
+    StrandSet synthesizedStrands;           // strands synthesized with onSynthesizeHair
     std::string statusMessage;
 
     ClosestGuides closestGuides;
 
     // flags
+    bool inputLoaded = false;
     bool guidesReady = false;
+    bool synthesizeHairReady = false;
 };
 
 #endif
