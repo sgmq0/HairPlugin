@@ -29,6 +29,7 @@ include_directories(
 
 set(SOURCE_FILES
     src/cpp/SOP_AuthoringPlugin.cpp
+    src/cpp/ClosestGuides.cpp
     src/cpp/Strand.cpp
     src/cpp/StrandSet.cpp
     src/cpp/GuideSet.cpp
@@ -36,6 +37,9 @@ set(SOURCE_FILES
     src/cpp/FeatureComputation.cpp
     src/cpp/GuideSmoothing.cpp
     src/cpp/DSO_AuthoringPlugin.cpp
+    src/cpp/ClusterVisualization.cpp
+    src/cpp/MeshToStrands.cpp
+    src/cpp/ClumpOperator.cpp
 )
 
 set(HEADER_FILES
@@ -46,6 +50,11 @@ set(HEADER_FILES
     include/GeometryImporter.h
     include/FeatureComputation.h
     include/GuideSmoothing.h
+    include/ClosestGuides.h
+    include/external/nanoflann.hpp
+    include/MeshToStrands.h
+    include/ClusterVisualization.h
+    include/ClumpOperator.h
 )
 
 add_library(${PROJECT_NAME} SHARED ${SOURCE_FILES} ${HEADER_FILES})

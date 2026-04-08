@@ -6,8 +6,8 @@
 #include "GuideSet.h"
 #include "GeometryImporter.h"
 #include "FeatureComputation.h"
-#include "GuideSmoothing.h"
-#include "ClosestGuides.h"
+#include "MeshToStrands.h"
+#include "ClusterVisualization.h"
 
 class SOP_AuthoringPlugin : public SOP_Node
 {
@@ -31,43 +31,62 @@ public:
     {
         return evalInt("num_guides", 0, t);
     }
+
+    float getClumpRadius(fpreal t = 0) const
+    {
+        return evalFloat("clump_radius", 0, t);
+    }
+
+    float getClumpTightness(fpreal t = 0) const
+    {
+        return evalFloat("clump_tightness", 0, t);
+    }
+
+    int getClumpCount(fpreal t = 0) const
+    {
+        return evalInt("clump_count", 0, t);
+    }
+
+    // Week 5 - Cluster Visualization getters
+    bool getColorByCluster(fpreal t = 0) const;
+
+    int getSelectedGuideIndex(fpreal t = 0) const;
+
     const char* getStatusMessage() const { return statusMessage.c_str(); }
 
 private:
-
-    // display functions
     void displayStrandSet(GU_Detail* gdp, const StrandSet& strands);
     void displayGuides(GU_Detail* gdp, const GuideSet& guides);
     void displaySynthesized(GU_Detail* gdp, const StrandSet& synthesized);
     void setDisplayStrings(fpreal now, std::string strand_str, std::string bounds_str, std::string status_str);
 
-    // callback: extract guide strands when clicked
+    // Week 5 - Mesh Loading callbacks
+    static int onLoadHairMeshCallback(void* data, int index, fpreal t, const PRM_Template*);
+    void onLoadHairMesh(fpreal t);
+
+    // Task 2 - Guide extraction callback
     static int onExtractGuidesCallback(void* data, int index, fpreal t, const PRM_Template*);
     void onExtractGuides(fpreal t);
 
-    // callback: synthesize new strands when clicked.
+    // Task 3 - Synthesis callbacks
     static int onSynthesizeHairCallback(void* data, int index, fpreal t, const PRM_Template*);
     void onSynthesizeHair(fpreal t);
 
-    std::vector<Feature> computeFeatures();                             // step 2.1: feature vector computation
-    void clusterGuides(int numGuides, std::vector<Feature> features);   // step 2.2: k-means clustering
-    void smoothGuides();                                                // step 2.3: guide smoothing. TODO: is this implemented correctly...? check later
-
-    void extractRootsFromInputStrands();    // runs when synthesize button is clicked
+    // Feature computation and clustering
+    std::vector<Feature> computeFeatures();
+    void clusterGuides(int numGuides, std::vector<Feature> features);
+    void smoothGuides();
     void synthesizeHair();
 
-    StrandSet inputStrands;                 // input curves
-    std::vector<UT_Vector3> strandRoots;    // vector storing all the root positions of input curves. 
-    GuideSet guides;                        // guides generated with onExtractGuides
-    StrandSet synthesizedStrands;           // strands synthesized with onSynthesizeHair
+    // Member variables
+    StrandSet inputStrands;
+    GuideSet guides;
+    StrandSet synthesizedStrands;
     std::string statusMessage;
 
-    ClosestGuides closestGuides;
-
-    // flags
-    bool inputLoaded = false;
+    // Flags
     bool guidesReady = false;
-    bool synthesizeHairReady = false;
+    bool synthesisReady = false;
 };
 
 #endif

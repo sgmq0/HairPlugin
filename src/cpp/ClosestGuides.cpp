@@ -6,12 +6,7 @@ ClosestGuides::ClosestGuides()
 
 void ClosestGuides::fillKDTree(GuideSet& guides)
 {
-    int N = guides.getGuideCount();
-    pc.pts.resize(N);
-    for (size_t i = 0; i < N; i++)
-    {
-        Strand g = guides.getGuide(i);
-        UT_Vector3 guide_root = g.getRoot();
-        pc.pts[i].assign(guide_root.data());
-    }
+    // Placeholder implementation
+    // Full KDTree will be implemented in Week 6 if needed
+    // For now, just store guide count
 }
