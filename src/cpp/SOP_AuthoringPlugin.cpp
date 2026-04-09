@@ -292,7 +292,7 @@ SOP_AuthoringPlugin::cookMySop(OP_Context& context)
         // Display based on state
         if (synthesisReady) {
             // Show all three layers: input, guides, and synthesis
-            displayStrandSet(gdp, inputStrands); //change this to synthesizedStrands once that's implemented again...
+            displayStrandSet(gdp, synthesizedStrands);
             displayGuides(gdp, guides);
             //displaySynthesized(gdp, synthesizedStrands);
             addMessage(SOP_MESSAGE, ("Showing " + std::to_string(synthesizedStrands.getStrandCount()) + " synthesized strands").c_str());
@@ -317,9 +317,10 @@ SOP_AuthoringPlugin::cookMySop(OP_Context& context)
     return error();
 }
 
-// ----------------- callback functions for UI buttons ------------------
+// ============================================================================
+//                             CALLBACK FUNCTIONS
+// ============================================================================
 
-// Callback for Extract Guides button
 int SOP_AuthoringPlugin::onExtractGuidesCallback(void* data, int index, fpreal t, const PRM_Template*) {
     SOP_AuthoringPlugin* sop = static_cast<SOP_AuthoringPlugin*>(data);
     if (!sop) return 0;
@@ -343,6 +344,57 @@ void SOP_AuthoringPlugin::onExtractGuides(fpreal t) {
     synthesisReady = false;  // Reset synthesis when guides change
     forceRecook();
 }
+
+// Callback for Synthesize Hair button
+int SOP_AuthoringPlugin::onSynthesizeHairCallback(void* data, int index, fpreal t, const PRM_Template*) {
+    SOP_AuthoringPlugin* sop = static_cast<SOP_AuthoringPlugin*>(data);
+    if (!sop) return 0;
+
+    sop->onSynthesizeHair(t);
+    return 1;
+}
+
+void SOP_AuthoringPlugin::onSynthesizeHair(fpreal t) {
+    // TASK 3 - Generate clumped hair from guides
+
+    if (guides.getGuideCount() == 0) {
+        addMessage(SOP_MESSAGE, "No guides to synthesize from. Extract guides first.");
+        return;
+    }
+
+    extractRootsFromInputStrands();
+
+    // Get clumping parameters
+    float clumpRadius = getClumpRadius(t);
+    float clumpTightness = getClumpTightness(t);
+    int clumpCount = getClumpCount(t);
+
+    // Generate clumped strands from guides
+    synthesizedStrands = ClumpOperator::clumpFromGuides(
+        guides,
+        clumpRadius,
+        clumpTightness,
+        clumpCount);
+
+    //synthesizeHair();
+
+    if (synthesizedStrands.getStrandCount() == 0) {
+        addMessage(SOP_MESSAGE, "Failed to synthesize hair");
+        return;
+    }
+
+    synthesisReady = true;
+
+    addMessage(SOP_MESSAGE, ("Synthesized " +
+        std::to_string(synthesizedStrands.getStrandCount()) +
+        " strands").c_str());
+
+    forceRecook();
+}
+
+// ============================================================================
+//                            CLUSTERING FUNCTIONS
+// ============================================================================
 
 std::vector<Feature> SOP_AuthoringPlugin::computeFeatures()
 {
@@ -555,6 +607,10 @@ void SOP_AuthoringPlugin::clusterGuides(int numGuides, std::vector<Feature> feat
     addMessage(SOP_MESSAGE, std::to_string(guides.getGuideCount()).c_str());
 }
 
+// ============================================================================
+//                          HELPER/UTILITY FUNCTIONS
+// ============================================================================
+
 void SOP_AuthoringPlugin::smoothGuides()
 {
     // TASK 2.3 - GUIDE SMOOTHING
@@ -569,50 +625,55 @@ void SOP_AuthoringPlugin::synthesizeHair()
 {
     // TASK 3 - HAIR SYNTHESIS
     // Not implemented in Alpha
-}
+    synthesizedStrands.clear();
 
-// Callback for Synthesize Hair button
-int SOP_AuthoringPlugin::onSynthesizeHairCallback(void* data, int index, fpreal t, const PRM_Template*) {
-    SOP_AuthoringPlugin* sop = static_cast<SOP_AuthoringPlugin*>(data);
-    if (!sop) return 0;
-
-    sop->onSynthesizeHair(t);
-    return 1;
-}
-
-void SOP_AuthoringPlugin::onSynthesizeHair(fpreal t) {
-    // TASK 3 - Generate clumped hair from guides
-
-    if (guides.getGuideCount() == 0) {
-        addMessage(SOP_MESSAGE, "No guides to synthesize from. Extract guides first.");
-        return;
+    // default line
+    std::vector<UT_Vector3> vertices;
+    for (int i = 0; i < 10; i++) {
+        vertices.push_back(UT_Vector3(0, i / 10.0f, 0));
     }
 
-    // Get clumping parameters
-    float clumpRadius = getClumpRadius(t);
-    float clumpTightness = getClumpTightness(t);
-    int clumpCount = getClumpCount(t);
+    // populate synthesizedStrands
+    for (size_t i = 0; i < strandRoots.size(); i++) {
+        Strand strand;
+        UT_Vector3 root = strandRoots.at(i);
 
-    // Generate clumped strands from guides
-    synthesizedStrands = ClumpOperator::clumpFromGuides(
-        guides,
-        clumpRadius,
-        clumpTightness,
-        clumpCount);
+        // find strand's position vector and radius vector
+        for (size_t j = 0; j < vertices.size(); ++j)
+        {
+            strand.positions.push_back(vertices[j] + root);
+            strand.radius.push_back(1.0f);
+        }
 
-    if (synthesizedStrands.getStrandCount() == 0) {
-        addMessage(SOP_MESSAGE, "Failed to synthesize hair");
-        return;
+        // figure out arclength
+        strand.arcLength = 0.0f;
+        for (size_t j = 1; j < strand.positions.size(); j++)
+        {
+            float segLen = (strand.positions[j] - strand.positions[j - 1]).length();
+            strand.arcLength += segLen;
+        }
+
+        // find which cluster it belongs to
+        strand.clusterID = inputStrands.getStrand(i).clusterID;
+
+        if (strand.arcLength > 1e-6f)
+        {
+            synthesizedStrands.addStrand(strand);
+        }
     }
-
-    synthesisReady = true;
-
-    addMessage(SOP_MESSAGE, ("Synthesized " +
-        std::to_string(synthesizedStrands.getStrandCount()) +
-        " strands").c_str());
-
-    forceRecook();
 }
+
+void SOP_AuthoringPlugin::extractRootsFromInputStrands()
+{
+    strandRoots.clear();
+    for (int i = 0; i < inputStrands.getStrandCount(); i++) {
+        strandRoots.push_back(inputStrands.getStrand(i).getRoot());
+    }
+}
+
+// ============================================================================
+//                             DISPLAY FUNCTIONS
+// ============================================================================
 
 void SOP_AuthoringPlugin::displayStrandSet(GU_Detail* gdp, const StrandSet& strands)
 {
@@ -644,14 +705,6 @@ void SOP_AuthoringPlugin::displayStrandSet(GU_Detail* gdp, const StrandSet& stra
 
         if (colorByCluster && guides.getGuideCount() > 0) {
             // Color by cluster
-
-            //if (strand.clusterID % 2 == 0) {
-            //    strandColor = UT_Vector3(1.0f, 0.0f, 0.0f);
-            //}
-            //else {
-            //    strandColor = UT_Vector3(0.0f, 0.0f, 1.0f);
-            //}
-
             strandColor = ClusterVisualization::getClusterColor(
                 strand.clusterID,
                 guides.getGuideCount());

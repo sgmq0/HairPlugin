@@ -78,8 +78,11 @@ private:
     // Feature computation and clustering
     std::vector<Feature> computeFeatures();                // step 2.1: feature vector computation
     void clusterGuides(int numGuides, std::vector<Feature> features);   // step 2.2: k-means clustering
+
+    // various helper/utility functions
     void smoothGuides();    // step 2.3: guide smoothing.
     void synthesizeHair();  
+    void extractRootsFromInputStrands();    // runs when synthesize button is clicked
 
     // Member variables 
     StrandSet inputStrands;         // input curves
