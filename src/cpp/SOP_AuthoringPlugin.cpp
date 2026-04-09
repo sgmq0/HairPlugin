@@ -22,8 +22,8 @@ newSopOperator(OP_OperatorTable* table)
             "Authoring Plugin",
             SOP_AuthoringPlugin::myConstructor,
             SOP_AuthoringPlugin::myTemplateList,
-            0,
-            0,
+            1,
+            1,
             nullptr,
             OP_FLAG_GENERATOR)
     );
@@ -62,31 +62,28 @@ SOP_AuthoringPlugin::myTemplateList[] = {
     PRM_Template(PRM_STRING, 1, &boundsName, PRMzeroDefaults),
     PRM_Template(PRM_STRING, 1, &statusName, PRMzeroDefaults),
 
-    PRM_Template(PRM_SEPARATOR, 1, new PRM_Name("sep_input", "——— Input ———")),
-
     // Week 5 - Hair Mesh Loading
-    PRM_Template(PRM_FILE, 1, &hairMeshFileName, new PRM_Default(0, "*.obj")),
-    PRM_Template(PRM_CALLBACK, 1, &loadHairMeshBtn, nullptr, 0, nullptr, &SOP_AuthoringPlugin::onLoadHairMeshCallback),
-
-    PRM_Template(PRM_SEPARATOR, 1, new PRM_Name("sep_guides", "——— Guides ———")),
+    // temp removed for testing (ray)
+    //PRM_Template(PRM_SEPARATOR, 1, new PRM_Name("sep_input", "——— Input ———")),
+    //PRM_Template(PRM_FILE, 1, &hairMeshFileName, new PRM_Default(0, "*.obj")),
+    //PRM_Template(PRM_CALLBACK, 1, &loadHairMeshBtn, nullptr, 0, nullptr, &SOP_AuthoringPlugin::onLoadHairMeshCallback),
 
     // change number of guide strands
+    PRM_Template(PRM_SEPARATOR, 1, new PRM_Name("sep_guides", "——— Guides ———")),
     PRM_Template(PRM_INT, 1, &numGuidesName, new PRM_Default(20), 0, &numGuidesRange),
     PRM_Template(PRM_CALLBACK, 1, &extractGuidesBtn, nullptr, 0, nullptr, &SOP_AuthoringPlugin::onExtractGuidesCallback),
 
-    PRM_Template(PRM_SEPARATOR, 1, new PRM_Name("sep_viz", "——— Visualization ———")),
-
-    // Week 5 - Cluster Visualization
-    PRM_Template(PRM_TOGGLE, 1, &colorByClusterName, new PRM_Default(1)),
-    PRM_Template(PRM_INT, 1, &selectedGuideName, new PRM_Default(-1), 0, &selectedGuideRange),
-
-    PRM_Template(PRM_SEPARATOR, 1, new PRM_Name("sep_synth", "——— Synthesis ———")),
-
     // clump parameters
+    PRM_Template(PRM_SEPARATOR, 1, new PRM_Name("sep_synth", "——— Synthesis ———")),
     PRM_Template(PRM_FLT, 1, &radiusName, new PRM_Default(1.0), 0, &radiusRange),
     PRM_Template(PRM_FLT, 1, &tightnessName, new PRM_Default(0.5), 0, &tightnessRange),
     PRM_Template(PRM_INT, 1, &countName, new PRM_Default(20), 0, &countRange),
     PRM_Template(PRM_CALLBACK, 1, &synthesizeHairBtn, nullptr, 0, nullptr, &SOP_AuthoringPlugin::onSynthesizeHairCallback),
+
+    // Week 5 - Cluster Visualization
+    PRM_Template(PRM_SEPARATOR, 1, new PRM_Name("sep_viz", "——— Visualization ———")),
+    PRM_Template(PRM_TOGGLE, 1, &colorByClusterName, new PRM_Default(1)),
+    PRM_Template(PRM_INT, 1, &selectedGuideName, new PRM_Default(-1), 0, &selectedGuideRange),
 
     PRM_Template()
 };
@@ -170,7 +167,19 @@ void SOP_AuthoringPlugin::inputConnectChanged(int which_input) {
 
     if (which_input == 0 && getInput(0)) {
         addExtraInput(getInput(0), OP_INTEREST_DATA);
+
+        // reset
+        inputStrands = StrandSet();
+        //strandRoots.clear();
+        guides = GuideSet();
+        synthesizedStrands = StrandSet();
+        statusMessage = "";
+
+        // reset flags
+        inputLoaded = false;
         guidesReady = false;
+        synthesisReady = false;
+
         forceRecook();
     }
 }
@@ -194,7 +203,7 @@ SOP_AuthoringPlugin::cookMySop(OP_Context& context)
 
         // Check if we have loaded strands from file
         // No input geometry required - work standalone
-        if (inputStrands.getStrandCount() == 0)
+        if (lockInput(0, context) >= UT_ERROR_ABORT)
         {
             statusMessage = "Load a hair mesh file to begin";
             setDisplayStrings(now, "0", "-", statusMessage);
@@ -202,54 +211,113 @@ SOP_AuthoringPlugin::cookMySop(OP_Context& context)
             return error();
         }
 
-        // Get strand information
-        int strandCount = inputStrands.getStrandCount();
-        UT_BoundingBox bounds = inputStrands.getBounds();
+        if (!inputLoaded) {
+            // =========== TASK 1.1 - LOAD GEOMETRY FROM UPSTREAM SOP ===========
+            
+            // Get the input geometry from upstream SOP
+            const GU_Detail* input_geo = inputGeo(0, context);
 
-        // Calculate size from bounding box
-        fpreal width = bounds.xmax() - bounds.xmin();
-        fpreal height = bounds.ymax() - bounds.ymin();
-        fpreal depth = bounds.zmax() - bounds.zmin();
+            if (!input_geo)
+            {
+                unlockInput(0);
+                statusMessage = "Waiting for input geometry";
+                setDisplayStrings(now, 0, statusMessage, "-");
+                // Don't error - just waiting for connection
+                boss->opEnd();
+                return error();
+            }
 
-        // Create formatted status message
-        char statusBuf[512];
-        snprintf(statusBuf, sizeof(statusBuf),
-            "Strands: %d | Bounds: %.2f x %.2f x %.2f",
-            strandCount,
-            width, height, depth);
+            // Check if input has any geometry
+            if (input_geo->getNumPrimitives() == 0)
+            {
+                unlockInput(0);
+                statusMessage = "FAILED: Input has no geometry";
+                setDisplayStrings(now, 0, statusMessage, "-");
+                boss->opEnd();
+                return error();
+            }
 
-        // Store status message for later retrieval
-        statusMessage = statusBuf;
+            // Load curves from Houdini geometry
+            inputStrands = GeometryImporter::loadFromHoudiniGeometry(input_geo);
 
-        // Display status message to user in Houdini
-        addMessage(SOP_MESSAGE, statusBuf);
+            if (!GeometryImporter::getLastError().empty())
+            {
+                addMessage(SOP_MESSAGE, GeometryImporter::getLastError().c_str());
+            }
 
-        // set all the ui information
-        setDisplayStrings(now, std::to_string(inputStrands.getStrandCount()), statusBuf, "OK");
+            // Validate that we loaded something
+            if (inputStrands.getStrandCount() == 0)
+            {
+                unlockInput(0);
+                addMessage(SOP_MESSAGE, "u messed up 3");
+                statusMessage = "FAILED: No curves found in input";
+                setDisplayStrings(now, 0, statusMessage, "-");
+                boss->opEnd();
+                return error();
+            }
+            else {
+                addMessage(SOP_MESSAGE, std::to_string(inputStrands.getStrandCount()).c_str());
+            }
+
+            // =========== TASK 1.3 - DISPLAY STATUS (Strand count + Bounding box) ===========
+
+            // Get strand information
+            int strandCount = inputStrands.getStrandCount();
+            UT_BoundingBox bounds = inputStrands.getBounds();
+
+            // Calculate size from bounding box
+            fpreal width = bounds.xmax() - bounds.xmin();
+            fpreal height = bounds.ymax() - bounds.ymin();
+            fpreal depth = bounds.zmax() - bounds.zmin();
+
+            // Create formatted status message
+            char statusBuf[512];
+            snprintf(statusBuf, sizeof(statusBuf),
+                "Strands: %d | Bounds: %.2f x %.2f x %.2f",
+                strandCount,
+                width, height, depth);
+
+            // Store status message for later retrieval
+            statusMessage = statusBuf;
+
+            // Display status message to user in Houdini
+            addMessage(SOP_MESSAGE, statusBuf);
+
+            // set all the ui information
+            setDisplayStrings(now, std::to_string(inputStrands.getStrandCount()), statusBuf, "OK");
+
+            inputLoaded = true;
+        }
 
         // Display based on state
         if (synthesisReady) {
             // Show all three layers: input, guides, and synthesis
-            displayStrandSet(gdp, inputStrands);
+            displayStrandSet(gdp, inputStrands); //change this to synthesizedStrands once that's implemented again...
             displayGuides(gdp, guides);
-            displaySynthesized(gdp, synthesizedStrands);
+            //displaySynthesized(gdp, synthesizedStrands);
             addMessage(SOP_MESSAGE, ("Showing " + std::to_string(synthesizedStrands.getStrandCount()) + " synthesized strands").c_str());
         }
-        else if (guidesReady) {
+        
+        if (guidesReady) {
             // Show input strands and guides
-            displayStrandSet(gdp, inputStrands);
             displayGuides(gdp, guides);
             addMessage(SOP_MESSAGE, "guides displayed");
         }
-        else {
-            // Show only input strands
+
+        if (!guidesReady && !synthesisReady) {
+            // just display input by default
             displayStrandSet(gdp, inputStrands);
         }
+
+        // make sure to free input
+        unlockInput(0);
     }
 
     boss->opEnd();
     return error();
 }
+
+// ----------------- callback functions for UI buttons ------------------
 
 // Callback for Extract Guides button
 int SOP_AuthoringPlugin::onExtractGuidesCallback(void* data, int index, fpreal t, const PRM_Template*) {
@@ -267,6 +335,9 @@ void SOP_AuthoringPlugin::onExtractGuides(fpreal t) {
     std::vector<Feature> features = computeFeatures(); // task 2.1: feature vector computation
     clusterGuides(getNumGuides(t), features); // task 2.2: run k means clustering
     smoothGuides();
+
+    // compute kd tree of guides
+    closestGuides.fillKDTree(guides);
 
     guidesReady = true;
     synthesisReady = false;  // Reset synthesis when guides change
@@ -299,6 +370,12 @@ std::vector<Feature> SOP_AuthoringPlugin::computeFeatures()
 void SOP_AuthoringPlugin::clusterGuides(int numGuides, std::vector<Feature> features)
 {
     // TASK 2.2 - K-MEANS CLUSTERING
+    // implemented by ray
+    // doing k means clustering manually
+    // 1. Take feature vectors computed in computeFeatures()
+    // 2. Run K-means with numGuides clusters
+    // 3. Assign each strand to a cluster
+    // 4. Call extractFromStrands() to create guides
 
     addMessage(SOP_MESSAGE, "Begin K-means clustering");
 
@@ -309,8 +386,8 @@ void SOP_AuthoringPlugin::clusterGuides(int numGuides, std::vector<Feature> feat
     }
 
     int numStrands = inputStrands.getStrandCount();
-    int k = std::min(numGuides, numStrands);
-    int featureDim = features[0].values.size();
+    int k = std::min(numGuides, numStrands); // min because k can't be less than numStrands
+    int featureDim = features[0].values.size(); // 7
 
     // 1. initialize cluster centers randomly
     std::vector<int> centerIndices;
@@ -458,6 +535,10 @@ void SOP_AuthoringPlugin::clusterGuides(int numGuides, std::vector<Feature> feat
                 bestDist = dist;
                 bestStrand = i;
             }
+
+            // assign cluster ids to strands
+            Strand& strand = inputStrands.getStrand(i);
+            strand.clusterID = assignments[i];
         }
 
         Strand& s = inputStrands.getStrand(bestStrand);
@@ -468,7 +549,7 @@ void SOP_AuthoringPlugin::clusterGuides(int numGuides, std::vector<Feature> feat
     guides.extractFromStrands(guideStrands, k);
 
     // Week 5 - Assign cluster IDs to all strands
-    ClusterVisualization::assignClustersToStrands(inputStrands, guides);
+    // ClusterVisualization::assignClustersToStrands(inputStrands, guides);
 
     addMessage(SOP_MESSAGE, "K-means clustering complete");
     addMessage(SOP_MESSAGE, std::to_string(guides.getGuideCount()).c_str());
@@ -563,6 +644,14 @@ void SOP_AuthoringPlugin::displayStrandSet(GU_Detail* gdp, const StrandSet& stra
 
         if (colorByCluster && guides.getGuideCount() > 0) {
             // Color by cluster
+
+            //if (strand.clusterID % 2 == 0) {
+            //    strandColor = UT_Vector3(1.0f, 0.0f, 0.0f);
+            //}
+            //else {
+            //    strandColor = UT_Vector3(0.0f, 0.0f, 1.0f);
+            //}
+
             strandColor = ClusterVisualization::getClusterColor(
                 strand.clusterID,
                 guides.getGuideCount());

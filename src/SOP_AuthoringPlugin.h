@@ -6,6 +6,8 @@
 #include "GuideSet.h"
 #include "GeometryImporter.h"
 #include "FeatureComputation.h"
+#include "GuideSmoothing.h"
+#include "ClosestGuides.h"
 #include "MeshToStrands.h"
 #include "ClusterVisualization.h"
 
@@ -55,36 +57,40 @@ public:
     const char* getStatusMessage() const { return statusMessage.c_str(); }
 
 private:
+    // display functions
     void displayStrandSet(GU_Detail* gdp, const StrandSet& strands);
     void displayGuides(GU_Detail* gdp, const GuideSet& guides);
     void displaySynthesized(GU_Detail* gdp, const StrandSet& synthesized);
     void setDisplayStrings(fpreal now, std::string strand_str, std::string bounds_str, std::string status_str);
 
-    // Week 5 - Mesh Loading callbacks
+    // Week 5 - Mesh Loading callbacks. extract guide strands when clicked
     static int onLoadHairMeshCallback(void* data, int index, fpreal t, const PRM_Template*);
     void onLoadHairMesh(fpreal t);
 
-    // Task 2 - Guide extraction callback
+    // Task 2 - Guide extraction callback. 
     static int onExtractGuidesCallback(void* data, int index, fpreal t, const PRM_Template*);
     void onExtractGuides(fpreal t);
 
-    // Task 3 - Synthesis callbacks
+    // Task 3 - Synthesis callbacks.
     static int onSynthesizeHairCallback(void* data, int index, fpreal t, const PRM_Template*);
     void onSynthesizeHair(fpreal t);
 
     // Feature computation and clustering
-    std::vector<Feature> computeFeatures();
-    void clusterGuides(int numGuides, std::vector<Feature> features);
-    void smoothGuides();
-    void synthesizeHair();
+    std::vector<Feature> computeFeatures();                // step 2.1: feature vector computation
+    void clusterGuides(int numGuides, std::vector<Feature> features);   // step 2.2: k-means clustering
+    void smoothGuides();    // step 2.3: guide smoothing.
+    void synthesizeHair();  
 
-    // Member variables
-    StrandSet inputStrands;
-    GuideSet guides;
-    StrandSet synthesizedStrands;
+    // Member variables 
+    StrandSet inputStrands;         // input curves
+    GuideSet guides;                // guides generated with onExtractGuides
+    StrandSet synthesizedStrands;   // strands synthesized with onSynthesizeHair
+    std::vector<UT_Vector3> strandRoots;    // vector storing all the root positions of input curves. 
+    ClosestGuides closestGuides;
     std::string statusMessage;
 
     // Flags
+    bool inputLoaded = false;
     bool guidesReady = false;
     bool synthesisReady = false;
 };
