@@ -23,6 +23,7 @@ include_directories(
     "${HOUDINI_INSTALL_PATH}/toolkit/include"
     "${HOUDINI_INSTALL_PATH}/custom/houdini/include"
     "${CMAKE_CURRENT_SOURCE_DIR}/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src"
     "C:/eigen-5.0.0"
     "."
 )
