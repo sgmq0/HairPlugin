@@ -22,8 +22,8 @@ newSopOperator(OP_OperatorTable* table)
             "Authoring Plugin",
             SOP_AuthoringPlugin::myConstructor,
             SOP_AuthoringPlugin::myTemplateList,
-            1,
-            1,
+            2,
+            2,
             nullptr,
             OP_FLAG_GENERATOR)
     );
@@ -182,6 +182,31 @@ void SOP_AuthoringPlugin::inputConnectChanged(int which_input) {
 
         forceRecook();
     }
+
+    else if (which_input == 1) {
+        addExtraInput(getInput(1), OP_INTEREST_DATA);
+
+        if (getInput(1)) {
+            addMessage(SOP_MESSAGE, "input 2 connected");
+            scalpConnected = true;
+        }
+        else {
+            addMessage(SOP_MESSAGE, "input 2 disconnected");
+            scalpConnected = false;
+        }
+
+        forceRecook();
+    }
+}
+
+const char* SOP_AuthoringPlugin::inputLabel(OP_InputIdx idx) const
+{
+    switch (idx) {
+        case 0: return "Hair Curves";
+        case 1: return "Scalp Mesh";
+        default: return "Input";
+    }
+    
 }
 
 void SOP_AuthoringPlugin::setDisplayStrings(fpreal now, std::string strand_str, std::string bounds_str, std::string status_str) {
@@ -289,6 +314,43 @@ SOP_AuthoringPlugin::cookMySop(OP_Context& context)
             inputLoaded = true;
         }
 
+        // check if scalp mesh is connected
+        if (lockInput(1, context) >= UT_ERROR_ABORT)
+        {
+            setDisplayStrings(now, "0", "-", "scalp mesh disconnected");
+            boss->opEnd();
+            return error();
+        }
+
+        // load in scalp mesh
+        if (scalpConnected) {
+            addMessage(SOP_MESSAGE, "scalp is connected");
+
+            // Get the input geometry from upstream SOP
+            const GU_Detail* input_geo = inputGeo(1, context);
+
+            if (!input_geo)
+            {
+                unlockInput(1);
+                statusMessage = "scalp disconnected";
+                setDisplayStrings(now, 0, statusMessage, "-");
+                // Don't error - just waiting for connection
+                boss->opEnd();
+                return error();
+            }
+            
+            // show the scalp
+            gdp->copy(*input_geo, GEO_COPY_ADD);
+
+            // 
+        }
+        else {
+            unlockInput(1);
+            addMessage(SOP_MESSAGE, "must connect scalp...");
+            boss->opEnd();
+            return error();
+        }
+
         // Display based on state
         if (synthesisReady) {
             // Show all three layers: input, guides, and synthesis
@@ -311,6 +373,7 @@ SOP_AuthoringPlugin::cookMySop(OP_Context& context)
 
         // make sure to free input
         unlockInput(0);
+        unlockInput(1);
     }
 
     boss->opEnd();
@@ -337,7 +400,9 @@ void SOP_AuthoringPlugin::onExtractGuides(fpreal t) {
     clusterGuides(getNumGuides(t), features); // task 2.2: run k means clustering
     smoothGuides();
 
-    // compute kd tree of guides
+    // TODO: Compute the UV location (on the scalp) of each of the guide strands' roots 
+
+    // TODO: Finish this function to compute kd tree of guides
     closestGuides.fillKDTree(guides);
 
     guidesReady = true;
@@ -363,6 +428,8 @@ void SOP_AuthoringPlugin::onSynthesizeHair(fpreal t) {
     }
 
     extractRootsFromInputStrands();
+
+    // TODO: assign each hair strand N closest guide strands (weighted on UV distance)
 
     // Get clumping parameters
     float clumpRadius = getClumpRadius(t);
