@@ -75,9 +75,9 @@ SOP_AuthoringPlugin::myTemplateList[] = {
 
     // clump parameters
     PRM_Template(PRM_SEPARATOR, 1, new PRM_Name("sep_synth", "——— Synthesis ———")),
-    PRM_Template(PRM_FLT, 1, &radiusName, new PRM_Default(1.0), 0, &radiusRange),
-    PRM_Template(PRM_FLT, 1, &tightnessName, new PRM_Default(0.5), 0, &tightnessRange),
-    PRM_Template(PRM_INT, 1, &countName, new PRM_Default(20), 0, &countRange),
+    PRM_Template(PRM_FLT, 1, &radiusName, new PRM_Default(0.1), 0, &radiusRange),
+    PRM_Template(PRM_FLT, 1, &tightnessName, new PRM_Default(1.0), 0, &tightnessRange),
+    PRM_Template(PRM_INT, 1, &countName, new PRM_Default(80), 0, &countRange),
     PRM_Template(PRM_CALLBACK, 1, &synthesizeHairBtn, nullptr, 0, nullptr, &SOP_AuthoringPlugin::onSynthesizeHairCallback),
 
     // Week 5 - Cluster Visualization
@@ -372,7 +372,7 @@ SOP_AuthoringPlugin::cookMySop(OP_Context& context)
         }
         
         if (guidesReady) {
-            // TODO: Compute the UV location (on the scalp) of each of the guide strands' roots 
+            // compute the UV location (on the scalp) of each of the guide strands' roots 
             guides.computeUVLocations(gdp);
 
             // testing
@@ -380,8 +380,10 @@ SOP_AuthoringPlugin::cookMySop(OP_Context& context)
             std::string uvStr = "(" + std::to_string(uv.x()) + ", " + std::to_string(uv.y()) + ")";
             addMessage(SOP_MESSAGE, uvStr.c_str());
 
-            // TODO: Finish this function to compute kd tree of guides
+            // compute kd tree of guides
             closestGuides.fillKDTree(guides);
+            std::string closestGuideString = "KDTree root: " + std::to_string(closestGuides.getRoot());
+            addMessage(SOP_MESSAGE, closestGuideString.c_str());
 
             // Show input strands and guides
             displayGuides(gdp, guides);
@@ -845,32 +847,5 @@ void SOP_AuthoringPlugin::displayGuides(GU_Detail* gdp, const GuideSet& guides)
         // red
         if (colorHandle.isValid())
             colorHandle.set(prim->getMapOffset(), UT_Vector3(1.0f, 0.0f, 0.0f));
-    }
-}
-
-void SOP_AuthoringPlugin::displaySynthesized(GU_Detail* gdp, const StrandSet& synthesized)
-{
-    // TASK 3 - DISPLAY SYNTHESIZED HAIR (GREEN CURVES)
-
-    if (!gdp) return;
-
-    GA_RWHandleV3 colorHandle(gdp->addDiffuseAttribute(GA_ATTRIB_PRIMITIVE));
-
-    // Iterate over synthesized strands
-    for (int i = 0; i < synthesized.getStrandCount(); ++i) {
-        const Strand& strand = synthesized.getStrand(i);
-        if (strand.positions.size() < 2) continue;
-
-        GA_Offset startPt = gdp->appendPointBlock(strand.positions.size());
-        for (int p = 0; p < (int)strand.positions.size(); ++p)
-            gdp->setPos3(startPt + p, strand.positions[p]);
-
-        GEO_PrimPoly* prim = GEO_PrimPoly::build(gdp, strand.positions.size(), GU_POLY_OPEN, false);
-        for (int p = 0; p < (int)strand.positions.size(); ++p)
-            prim->setPointOffset(p, startPt + p);
-
-        // Green color for synthesized strands
-        if (colorHandle.isValid())
-            colorHandle.set(prim->getMapOffset(), UT_Vector3(0.0f, 1.0f, 0.0f));
     }
 }
