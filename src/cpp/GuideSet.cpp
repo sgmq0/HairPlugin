@@ -1,6 +1,9 @@
 #include "GuideSet.h"
 #include "GuideSmoothing.h"
 #include <algorithm>
+#include <GU/GU_RayIntersect.h>
+#include <GEO/GEO_PrimPoly.h>
+#include <GA/GA_Handle.h>
 
 GuideSet::GuideSet() : totalStrands(0)
 {
@@ -124,3 +127,66 @@ UT_BoundingBox GuideSet::getBounds() const
 
     return bounds;
 }
+
+void GuideSet::computeUVLocations(GU_Detail* gdp)
+{
+    const GA_PrimitiveGroup* scalpGroup = gdp->findPrimitiveGroup("scalp");
+    GU_RayIntersect ray(gdp, scalpGroup);
+
+    for (Strand& s : guides) {
+        UT_Vector3 root = s.getRoot();
+
+        // find closest point on mesh surface
+        GU_MinInfo minInfo;
+        ray.minimumPoint(root, minInfo);
+
+        if (!minInfo.prim) {
+            s.root_UV = UT_Vector2(0, 0);
+            continue;
+        }
+
+        // s.root_UV = UT_Vector2(1.0, 0.0);
+
+        // get the primitive and barycentric coords of closest point
+        const GEO_Primitive* prim = minInfo.prim;
+        float u = minInfo.u1; // barycentric u
+        float v = minInfo.v1; // barycentric v
+
+        // look up UV attribute on the mesh
+        GA_ROHandleV3 uvHandle(gdp->findTextureAttribute(GA_ATTRIB_VERTEX));
+        if (!uvHandle.isValid())
+        {
+            s.root_UV = UT_Vector2(0, 0);
+            continue;
+        }
+
+        // interpolate UV across the primitive using barycentric coords
+        // for a quad/tri, walk the vertices and blend
+        int numVerts = prim->getVertexCount();
+        UT_Vector3 uvInterp(0, 0, 0);
+
+        if (numVerts == 3)
+        {
+            // triangle: standard barycentric interpolation
+            UT_Vector3 uv0 = uvHandle.get(prim->getVertexOffset(0));
+            UT_Vector3 uv1 = uvHandle.get(prim->getVertexOffset(1));
+            UT_Vector3 uv2 = uvHandle.get(prim->getVertexOffset(2));
+            uvInterp = uv0 * (1 - u - v) + uv1 * u + uv2 * v;
+        }
+        else if (numVerts == 4)
+        {
+            // quad: bilinear interpolation
+            UT_Vector3 uv0 = uvHandle.get(prim->getVertexOffset(0));
+            UT_Vector3 uv1 = uvHandle.get(prim->getVertexOffset(1));
+            UT_Vector3 uv2 = uvHandle.get(prim->getVertexOffset(2));
+            UT_Vector3 uv3 = uvHandle.get(prim->getVertexOffset(3));
+            uvInterp = uv0 * (1 - u) * (1 - v)
+                + uv1 * u * (1 - v)
+                + uv2 * u * v
+                + uv3 * (1 - u) * v;
+        }
+
+        s.root_UV = UT_Vector2(uvInterp.x(), uvInterp.y());
+    }
+}
+

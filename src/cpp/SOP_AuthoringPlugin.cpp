@@ -222,6 +222,8 @@ SOP_AuthoringPlugin::cookMySop(OP_Context& context)
 
     UT_Interrupt* boss = UTgetInterrupt();
 
+    scalpConnected = (getInput(1) != nullptr);
+
     if (boss->opStart("Cooking AuthoringPlugin"))
     {
         gdp->clearAndDestroy();
@@ -338,11 +340,20 @@ SOP_AuthoringPlugin::cookMySop(OP_Context& context)
                 boss->opEnd();
                 return error();
             }
+
+            GA_Index numPrims = gdp->getNumPrimitives();
             
             // show the scalp
             gdp->copy(*input_geo, GEO_COPY_ADD);
 
-            // 
+            // add scalp to its own group so we can isolate it later
+            GA_PrimitiveGroup* scalpGroup = gdp->newPrimitiveGroup("scalp");
+            for (GA_Iterator it(gdp->getPrimitiveRange()); !it.atEnd(); ++it)
+            {
+                const GA_Primitive* prim = gdp->getPrimitive(*it);
+                if (prim->getMapIndex() >= numPrims)
+                    scalpGroup->add(prim);
+            }
         }
         else {
             unlockInput(1);
@@ -361,6 +372,17 @@ SOP_AuthoringPlugin::cookMySop(OP_Context& context)
         }
         
         if (guidesReady) {
+            // TODO: Compute the UV location (on the scalp) of each of the guide strands' roots 
+            guides.computeUVLocations(gdp);
+
+            // testing
+            UT_Vector2 uv = guides.getGuide(1).root_UV;
+            std::string uvStr = "(" + std::to_string(uv.x()) + ", " + std::to_string(uv.y()) + ")";
+            addMessage(SOP_MESSAGE, uvStr.c_str());
+
+            // TODO: Finish this function to compute kd tree of guides
+            closestGuides.fillKDTree(guides);
+
             // Show input strands and guides
             displayGuides(gdp, guides);
             addMessage(SOP_MESSAGE, "guides displayed");
@@ -399,11 +421,6 @@ void SOP_AuthoringPlugin::onExtractGuides(fpreal t) {
     std::vector<Feature> features = computeFeatures(); // task 2.1: feature vector computation
     clusterGuides(getNumGuides(t), features); // task 2.2: run k means clustering
     smoothGuides();
-
-    // TODO: Compute the UV location (on the scalp) of each of the guide strands' roots 
-
-    // TODO: Finish this function to compute kd tree of guides
-    closestGuides.fillKDTree(guides);
 
     guidesReady = true;
     synthesisReady = false;  // Reset synthesis when guides change

@@ -2,6 +2,7 @@
 #define GUIDESET_H
 
 #include "Strand.h"
+#include <SOP/SOP_Node.h>
 #include <UT/UT_BoundingBox.h>
 #include <vector>
 
@@ -21,6 +22,8 @@ public:
     int getGuideCount() const;
     int getTotalStrandCount() const;
     UT_BoundingBox getBounds() const;
+
+    void computeUVLocations(GU_Detail* gdp);
 
 private:
     std::vector<Strand> guides;

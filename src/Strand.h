@@ -11,6 +11,7 @@ struct Strand
     float arcLength;
     int clusterID;
     float reconstructionError;
+    UT_Vector2 root_UV;
 
     Strand();
     ~Strand();
