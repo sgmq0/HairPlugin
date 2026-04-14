@@ -1,9 +1,12 @@
 #include "Strand.h"
+#include "GuideSet.h"
 #include <cmath>
 #include <algorithm>
 #include <GU/GU_RayIntersect.h>
 #include <GEO/GEO_PrimPoly.h>
 #include <GA/GA_Handle.h>
+
+class GuideSet;
 
 Strand::Strand()
     : arcLength(0.0f), clusterID(-1), reconstructionError(0.0f)
@@ -181,6 +184,25 @@ void Strand::computeUVLocation(GU_Detail* gdp, GU_MinInfo* minInfo)
     }
 
     root_UV = UT_Vector2(uvInterp.x(), uvInterp.y());
+}
+
+void Strand::computeGuideWeights(GuideSet* guideSet) {
+    for (size_t j = 0; j < guides.size(); j++) {
+        float dist = guides.at(j).first;
+        int idx = guides.at(j).second;
+
+        UT_Vector2 T_x = root_UV;
+        UT_Vector2 T_g = guideSet->getGuide(idx).root_UV;
+
+        float sigma = 2.0; // size of guide's region of influence. not sure where to get this value from
+
+        float d = T_x.distance(T_g);
+        float expo = -(d * d) / (sigma * sigma);
+        float weight = exp(expo);
+
+        std::pair<float, int> pair = std::pair<float, int>(weight, idx);
+        guideWeights.push_back(pair);
+    }
 }
 
 UT_Vector3 Strand::getRoot() const

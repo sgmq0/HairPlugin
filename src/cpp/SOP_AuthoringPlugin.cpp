@@ -727,11 +727,14 @@ void SOP_AuthoringPlugin::synthesizeHair(GU_Detail* gdp)
         // find strand's uv position
         GU_MinInfo minInfo;
         ray.minimumPoint(root, minInfo);
-
         strand.computeUVLocation(gdp, &minInfo);
 
-        // TODO: assign strand N guide strands that influence it
-        
+        // assign strand N guide strands that influence it
+        int N = 4;
+        strand.guides = closestGuides.findNNearest(strand.root_UV, N);
+
+        // compute the guide strands' weights
+        strand.computeGuideWeights(&guides);
 
         // find strand's position vector and radius vector
         // TODO: Change how these are found, interpolate using guide strands
