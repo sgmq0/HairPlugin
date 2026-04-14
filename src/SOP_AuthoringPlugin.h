@@ -83,7 +83,7 @@ private:
 
     // various helper/utility functions
     void smoothGuides();    // step 2.3: guide smoothing.
-    void synthesizeHair();  
+    void synthesizeHair(GU_Detail* gdp);
     void extractRootsFromInputStrands();    // runs when synthesize button is clicked
 
     // Member variables 

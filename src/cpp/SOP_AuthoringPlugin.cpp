@@ -6,6 +6,7 @@
 #include <OP/OP_OperatorTable.h>
 #include <PRM/PRM_Include.h>
 #include <GEO/GEO_PrimPoly.h>
+#include <GU/GU_RayIntersect.h>
 
 #include <iostream>
 
@@ -364,10 +365,15 @@ SOP_AuthoringPlugin::cookMySop(OP_Context& context)
 
         // Display based on state
         if (synthesisReady) {
+            synthesizeHair(gdp);
+
+            addMessage(SOP_MESSAGE, ("Synthesized " +
+                std::to_string(synthesizedStrands.getStrandCount()) +
+                " strands").c_str());
+
             // Show all three layers: input, guides, and synthesis
             displayStrandSet(gdp, synthesizedStrands);
             displayGuides(gdp, guides);
-            //displaySynthesized(gdp, synthesizedStrands);
             addMessage(SOP_MESSAGE, ("Showing " + std::to_string(synthesizedStrands.getStrandCount()) + " synthesized strands").c_str());
         }
         
@@ -375,15 +381,12 @@ SOP_AuthoringPlugin::cookMySop(OP_Context& context)
             // compute the UV location (on the scalp) of each of the guide strands' roots 
             guides.computeUVLocations(gdp);
 
-            // testing
             UT_Vector2 uv = guides.getGuide(1).root_UV;
             std::string uvStr = "(" + std::to_string(uv.x()) + ", " + std::to_string(uv.y()) + ")";
             addMessage(SOP_MESSAGE, uvStr.c_str());
 
             // compute kd tree of guides
             closestGuides.fillKDTree(guides);
-            std::string closestGuideString = "KDTree root: " + std::to_string(closestGuides.getRoot());
-            addMessage(SOP_MESSAGE, closestGuideString.c_str());
 
             // Show input strands and guides
             displayGuides(gdp, guides);
@@ -448,32 +451,27 @@ void SOP_AuthoringPlugin::onSynthesizeHair(fpreal t) {
 
     extractRootsFromInputStrands();
 
-    // TODO: assign each hair strand N closest guide strands (weighted on UV distance)
-
     // Get clumping parameters
     float clumpRadius = getClumpRadius(t);
     float clumpTightness = getClumpTightness(t);
     int clumpCount = getClumpCount(t);
 
+    // TODO: Consolidate these two functions that do two different things
     // Generate clumped strands from guides
-    synthesizedStrands = ClumpOperator::clumpFromGuides(
+    /*synthesizedStrands = ClumpOperator::clumpFromGuides(
         guides,
         clumpRadius,
         clumpTightness,
-        clumpCount);
+        clumpCount);*/
+
+    /*if (synthesizedStrands.getStrandCount() == 0) {
+        addMessage(SOP_MESSAGE, "Failed to synthesize hair");
+        return;
+    }*/
 
     //synthesizeHair();
 
-    if (synthesizedStrands.getStrandCount() == 0) {
-        addMessage(SOP_MESSAGE, "Failed to synthesize hair");
-        return;
-    }
-
     synthesisReady = true;
-
-    addMessage(SOP_MESSAGE, ("Synthesized " +
-        std::to_string(synthesizedStrands.getStrandCount()) +
-        " strands").c_str());
 
     forceRecook();
 }
@@ -707,11 +705,13 @@ void SOP_AuthoringPlugin::smoothGuides()
     }
 }
 
-void SOP_AuthoringPlugin::synthesizeHair()
+void SOP_AuthoringPlugin::synthesizeHair(GU_Detail* gdp)
 {
     // TASK 3 - HAIR SYNTHESIS
-    // Not implemented in Alpha
     synthesizedStrands.clear();
+
+    const GA_PrimitiveGroup* scalpGroup = gdp->findPrimitiveGroup("scalp");
+    GU_RayIntersect ray(gdp, scalpGroup);
 
     // default line
     std::vector<UT_Vector3> vertices;
@@ -724,7 +724,17 @@ void SOP_AuthoringPlugin::synthesizeHair()
         Strand strand;
         UT_Vector3 root = strandRoots.at(i);
 
+        // find strand's uv position
+        GU_MinInfo minInfo;
+        ray.minimumPoint(root, minInfo);
+
+        strand.computeUVLocation(gdp, &minInfo);
+
+        // TODO: assign strand N guide strands that influence it
+        
+
         // find strand's position vector and radius vector
+        // TODO: Change how these are found, interpolate using guide strands
         for (size_t j = 0; j < vertices.size(); ++j)
         {
             strand.positions.push_back(vertices[j] + root);
@@ -805,7 +815,10 @@ void SOP_AuthoringPlugin::displayStrandSet(GU_Detail* gdp, const StrandSet& stra
         }
         else {
             // Default white color
-            strandColor = UT_Vector3(1.0f, 1.0f, 1.0f);
+            //strandColor = UT_Vector3(1.0f, 1.0f, 1.0f);
+
+            UT_Vector2 uv = strand.root_UV;
+            strandColor = UT_Vector3(uv.x(), uv.y(), 1.0);
         }
 
         // Create geometry

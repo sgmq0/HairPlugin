@@ -2,6 +2,9 @@
 #define STRAND_H
 
 #include <UT/UT_Vector3.h>
+#include <SOP/SOP_Node.h>
+#include <GU/GU_RayIntersect.h>
+
 #include <vector>
 
 struct Strand
@@ -12,6 +15,7 @@ struct Strand
     int clusterID;
     float reconstructionError;
     UT_Vector2 root_UV;
+    std::vector<std::pair<float, int>> guides;  // (distance, index) n guide strands that influence it
 
     Strand();
     ~Strand();
@@ -22,6 +26,7 @@ struct Strand
     UT_Vector3 getTipDirection() const;
     float computeAverageRadius() const;
     float computeAverageCurvature() const;
+    void computeUVLocation(GU_Detail* gdp, GU_MinInfo* minInfo);
     UT_Vector3 getRoot() const;
 };
 
