@@ -714,10 +714,7 @@ void SOP_AuthoringPlugin::synthesizeHair(GU_Detail* gdp)
     GU_RayIntersect ray(gdp, scalpGroup);
 
     // default line
-    std::vector<UT_Vector3> vertices;
-    for (int i = 0; i < 10; i++) {
-        vertices.push_back(UT_Vector3(0, i / 10.0f, 0));
-    }
+    int numVertices = guides.getGuide(0).positions.size();
 
     // populate synthesizedStrands
     for (size_t i = 0; i < strandRoots.size(); i++) {
@@ -736,11 +733,47 @@ void SOP_AuthoringPlugin::synthesizeHair(GU_Detail* gdp)
         // compute the guide strands' weights
         strand.computeGuideWeights(&guides);
 
-        // find strand's position vector and radius vector
-        // TODO: Change how these are found, interpolate using guide strands
-        for (size_t j = 0; j < vertices.size(); ++j)
-        {
-            strand.positions.push_back(vertices[j] + root);
+        // find strand's position vector 
+        strand.positions.push_back(root);   // x_(i,1)
+
+        UT_Vector3 numSum0 = { 0.0f, 0.0f, 0.0f };
+        float denomSum0 = 0.0f;
+        for (std::pair<float, int> g : strand.guideWeights) {
+            // weight of guide
+            float weight = g.first;
+            denomSum0 += weight;
+
+            // position of guide's j-th vertex
+            float idx = g.second;
+            UT_Vector3 pos = guides.getGuide(idx).positions.at(0);
+            numSum0 += (pos * weight);
+        }
+        UT_Vector3 g_i0 = numSum0 / denomSum0;
+
+        for (size_t j = 1; j < numVertices; j++) {
+            UT_Vector3 finalPos = root;
+
+            // numerator: sum up weight of guide * position of guide's j-th vertex
+            // denominator: sum up weights of guides
+            UT_Vector3 numSum = {0.0f, 0.0f, 0.0f};
+            float denomSum = 0.0f;
+            for (std::pair<float, int> g : strand.guideWeights) {
+                // weight of guide
+                float weight = g.first;
+                denomSum += weight;
+
+                // position of guide's j-th vertex
+                float idx = g.second;
+                UT_Vector3 pos = guides.getGuide(idx).positions.at(j);
+                numSum += (pos * weight);
+            }
+            UT_Vector3 g_ij = numSum / denomSum;
+            finalPos += g_ij;
+            finalPos -= g_i0;
+
+            strand.positions.push_back(finalPos);
+            
+            // push back arbitrary radius
             strand.radius.push_back(1.0f);
         }
 
