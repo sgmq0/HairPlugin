@@ -1,4 +1,4 @@
-#include "ClumpOperator.h"
+﻿#include "ClumpOperator.h"
 #include <cstdlib>
 #include <cmath>
 #include <algorithm>
@@ -188,10 +188,10 @@ Strand ClumpOperator::applyTwist(
     // Apply twist along strand
     for (size_t i = 0; i < result.positions.size(); ++i) {
         float t = (strandLength > 0) ? (float)i / (float)(result.positions.size() - 1) : 0.0f;
-        float distance = t * strandLength;
 
-        // Twist angle: twistAmount degrees per unit, modulated by frequency
-        float angle = (twistAmount * distance / 180.0f * 3.14159f) * twistFrequency;
+        // Twist angle: twistAmount is in full rotations per strand length
+        // Convert to radians: twistAmount * 2π * frequency * t
+        float angle = twistAmount * 6.28318f * twistFrequency * t;
 
         // Rotate offset perpendicular to direction
         UT_Vector3 offset = result.positions[i] - strand.positions[i];
@@ -199,16 +199,11 @@ Strand ClumpOperator::applyTwist(
         float cosA = std::cos(angle);
         float sinA = std::sin(angle);
 
-        UT_Vector3 rotated;
-        rotated.assign(
-            offset.dot(perp2) * cosA - offset.dot(perp3) * sinA,
-            0, 0
-        );
-
+        // Rotate around the strand direction
         float comp2 = offset.dot(perp2) * cosA - offset.dot(perp3) * sinA;
         float comp3 = offset.dot(perp2) * sinA + offset.dot(perp3) * cosA;
 
-        rotated = perp2 * comp2 + perp3 * comp3;
+        UT_Vector3 rotated = perp2 * comp2 + perp3 * comp3;
         result.positions[i] = strand.positions[i] + rotated;
     }
 
@@ -240,8 +235,8 @@ Strand ClumpOperator::applyBend(
     for (size_t i = 0; i < result.positions.size(); ++i) {
         float t = (float)i / (float)(result.positions.size() - 1);
 
-        // Parabolic falloff: maximum bend at middle
-        float bendAmount = bendMagnitude * 4.0f * t * (1.0f - t);
+        // Parabolic falloff: maximum bend at middle, much stronger
+        float bendAmount = bendMagnitude * strandLength * 4.0f * t * (1.0f - t);
 
         result.positions[i] += bendDir * bendAmount;
     }
@@ -277,23 +272,22 @@ Strand ClumpOperator::applyNoise(
 
     for (size_t i = 0; i < result.positions.size(); ++i) {
         float t = (float)i / (float)(result.positions.size() - 1);
-        float distance = t * strandLength;
 
-        // 3D Perlin-like noise
+        // Simple random noise in 3D
         float noise = perlinNoise3D(
-            distance * noiseFrequency,
-            (float)i * 0.1f,
+            t * noiseFrequency,
+            (float)i * 0.05f,
             (float)rand() / RAND_MAX);
 
         // Apply noise in random perpendicular direction
         UT_Vector3 randomPerp;
         randomPerp.assign(
-            std::sin(distance),
-            std::cos(distance),
-            0);
+            std::sin(t * 6.28318f),
+            std::cos(t * 6.28318f),
+            std::sin(t * 3.14159f));
         randomPerp.normalize();
 
-        result.positions[i] += randomPerp * noise * noiseAmplitude;
+        result.positions[i] += randomPerp * noise * noiseAmplitude * strandLength;
     }
 
     return result;

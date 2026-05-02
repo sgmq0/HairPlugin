@@ -412,16 +412,9 @@ SOP_AuthoringPlugin::cookMySop(OP_Context& context)
                 cachedNoiseFrequency = currentNoiseFrequency;
             }
 
-            synthesizeHair(gdp);
-
-            addMessage(SOP_MESSAGE, ("Synthesized " +
-                std::to_string(synthesizedStrands.getStrandCount()) +
-                " strands").c_str());
-
-            // Show all three layers: input, guides, and synthesis
+            // Display synthesized strands
             displayStrandSet(gdp, synthesizedStrands);
             displayGuides(gdp, guides);
-            addMessage(SOP_MESSAGE, ("Showing " + std::to_string(synthesizedStrands.getStrandCount()) + " synthesized strands").c_str());
         }
 
         if (guidesReady) {
