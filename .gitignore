@@ -1,4 +1,5 @@
 /Build
 /include/eigen-5.0.0
 /Tests/backup
-Tests/straighthairtest.obj
+*.obj
+*.mtl
