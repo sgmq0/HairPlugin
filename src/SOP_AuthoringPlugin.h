@@ -152,12 +152,14 @@ private:
     std::vector<UT_Vector3> strandRoots;    // vector storing all the root positions of input curves. 
     ClosestGuides closestGuides;
     std::string statusMessage;
+    ClumpParams hairParams;
 
     // Flags
     bool inputLoaded = false;
     bool guidesReady = false;
     bool synthesisReady = false;
     bool scalpConnected = false;
+    bool needFirstSynthesis = false;
 
     // Track parameter changes for auto-resynthesis
     float cachedClumpRadius = -1.0f;

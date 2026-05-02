@@ -402,6 +402,18 @@ SOP_AuthoringPlugin::cookMySop(OP_Context& context)
             unlockInput(1);
         }
 
+        if (needFirstSynthesis) {
+
+            synthesizeHair(gdp);
+
+            if (synthesizedStrands.getStrandCount() == 0) {
+                addMessage(SOP_MESSAGE, "Failed to synthesize hair");
+                return error();
+            }
+            
+            needFirstSynthesis = false;
+        }
+
         // Display based on state
         if (synthesisReady) {
             // Check if any clump parameters have changed
@@ -428,22 +440,21 @@ SOP_AuthoringPlugin::cookMySop(OP_Context& context)
                 std::abs(currentNoiseFrequency - cachedNoiseFrequency) > 1e-6f) {
 
                 // Parameters changed - re-synthesize with new values
-                ClumpParams params;
-                params.clumpRadius = currentRadius;
-                params.clumpTightness = currentTightness;
-                params.clumpCount = currentCount;
-                params.twistAmount = currentTwistAmount;
-                params.twistFrequency = currentTwistFrequency;
-                params.bendMagnitude = currentBendMagnitude;
-                params.bendDirection.assign(
+                hairParams.clumpRadius = currentRadius;
+                hairParams.clumpTightness = currentTightness;
+                hairParams.clumpCount = currentCount;
+                hairParams.twistAmount = currentTwistAmount;
+                hairParams.twistFrequency = currentTwistFrequency;
+                hairParams.bendMagnitude = currentBendMagnitude;
+                hairParams.bendDirection.assign(
                     getBendDirX(now),
                     getBendDirY(now),
                     getBendDirZ(now));
-                params.noiseAmplitude = currentNoiseAmplitude;
-                params.noiseFrequency = currentNoiseFrequency;
+                hairParams.noiseAmplitude = currentNoiseAmplitude;
+                hairParams.noiseFrequency = currentNoiseFrequency;
 
                 // Re-synthesize
-                synthesizedStrands = ClumpOperator::clumpFromGuides(guides, params);
+                synthesizedStrands = ClumpOperator::clumpFromGuides(guides, hairParams);
 
                 // Update cached values
                 cachedClumpRadius = currentRadius;
@@ -539,35 +550,24 @@ void SOP_AuthoringPlugin::onSynthesizeHair(fpreal t) {
     extractRootsFromInputStrands();
 
     // Build full clumping parameters
-    ClumpParams params;
-    params.clumpRadius = getClumpRadius(t);
-    params.clumpTightness = getClumpTightness(t);
-    params.clumpCount = getClumpCount(t);
+    hairParams.clumpRadius = getClumpRadius(t);
+    hairParams.clumpTightness = getClumpTightness(t);
+    hairParams.clumpCount = getClumpCount(t);
 
     // Twist operator
-    params.twistAmount = getTwistAmount(t);
-    params.twistFrequency = getTwistFrequency(t);
+    hairParams.twistAmount = getTwistAmount(t);
+    hairParams.twistFrequency = getTwistFrequency(t);
 
     // Bend operator
-    params.bendMagnitude = getBendMagnitude(t);
-    params.bendDirection.assign(
+    hairParams.bendMagnitude = getBendMagnitude(t);
+    hairParams.bendDirection.assign(
         getBendDirX(t),
         getBendDirY(t),
         getBendDirZ(t));
 
     // Noise operator
-    params.noiseAmplitude = getNoiseAmplitude(t);
-    params.noiseFrequency = getNoiseFrequency(t);
-
-    // Generate clumped strands from guides
-    synthesizedStrands = ClumpOperator::clumpFromGuides(guides, params);
-
-    if (synthesizedStrands.getStrandCount() == 0) {
-        addMessage(SOP_MESSAGE, "Failed to synthesize hair");
-        return;
-    }
-
-    synthesisReady = true;
+    hairParams.noiseAmplitude = getNoiseAmplitude(t);
+    hairParams.noiseFrequency = getNoiseFrequency(t);
 
     // Cache current parameters for change detection
     cachedClumpRadius = getClumpRadius(t);
@@ -581,6 +581,17 @@ void SOP_AuthoringPlugin::onSynthesizeHair(fpreal t) {
     cachedBendDirZ = getBendDirZ(t);
     cachedNoiseAmplitude = getNoiseAmplitude(t);
     cachedNoiseFrequency = getNoiseFrequency(t);
+
+    // Generate clumped strands from guides
+    /*synthesizedStrands = ClumpOperator::clumpFromGuides(guides, hairParams);
+
+    if (synthesizedStrands.getStrandCount() == 0) {
+        addMessage(SOP_MESSAGE, "Failed to synthesize hair");
+        return;
+    }*/
+
+    needFirstSynthesis = true;
+    synthesisReady = true;
 
     forceRecook();
 }
