@@ -26,9 +26,13 @@ public:
     // Check if loss improved
     bool isImproving() const;
 
+    // Get optimized synthesized strands
+    StrandSet getSynthesizedStrands() const { return synthesizedStrands; }
+
 private:
     LossComponents currentLoss;
     LossComponents previousLoss;
+    StrandSet synthesizedStrands;
     int iterationsWithoutImprovement = 0;
     static constexpr int PATIENCE = 5;
 };

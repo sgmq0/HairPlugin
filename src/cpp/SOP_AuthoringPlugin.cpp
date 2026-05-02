@@ -325,50 +325,34 @@ SOP_AuthoringPlugin::cookMySop(OP_Context& context)
             inputLoaded = true;
         }
 
-        // check if scalp mesh is connected
-        if (lockInput(1, context) >= UT_ERROR_ABORT)
+        // check if scalp mesh is connected (optional)
+        if (lockInput(1, context) < UT_ERROR_ABORT)
         {
-            setDisplayStrings(now, "0", "-", "scalp mesh disconnected");
-            boss->opEnd();
-            return error();
-        }
+            scalpConnected = (getInput(1) != nullptr);
 
-        // load in scalp mesh
-        if (scalpConnected) {
-            addMessage(SOP_MESSAGE, "scalp is connected");
+            // load in scalp mesh if connected
+            if (scalpConnected) {
+                // Get the input geometry from upstream SOP
+                const GU_Detail* input_geo = inputGeo(1, context);
 
-            // Get the input geometry from upstream SOP
-            const GU_Detail* input_geo = inputGeo(1, context);
+                if (input_geo && input_geo->getNumPrimitives() > 0)
+                {
+                    GA_Index numPrims = gdp->getNumPrimitives();
 
-            if (!input_geo)
-            {
-                unlockInput(1);
-                statusMessage = "scalp disconnected";
-                setDisplayStrings(now, 0, statusMessage, "-");
-                // Don't error - just waiting for connection
-                boss->opEnd();
-                return error();
+                    // show the scalp
+                    gdp->copy(*input_geo, GEO_COPY_ADD);
+
+                    // add scalp to its own group so we can isolate it later
+                    GA_PrimitiveGroup* scalpGroup = gdp->newPrimitiveGroup("scalp");
+                    for (GA_Iterator it(gdp->getPrimitiveRange()); !it.atEnd(); ++it)
+                    {
+                        const GA_Primitive* prim = gdp->getPrimitive(*it);
+                        if (prim->getMapIndex() >= numPrims)
+                            scalpGroup->add(prim);
+                    }
+                }
             }
-
-            GA_Index numPrims = gdp->getNumPrimitives();
-
-            // show the scalp
-            gdp->copy(*input_geo, GEO_COPY_ADD);
-
-            // add scalp to its own group so we can isolate it later
-            GA_PrimitiveGroup* scalpGroup = gdp->newPrimitiveGroup("scalp");
-            for (GA_Iterator it(gdp->getPrimitiveRange()); !it.atEnd(); ++it)
-            {
-                const GA_Primitive* prim = gdp->getPrimitive(*it);
-                if (prim->getMapIndex() >= numPrims)
-                    scalpGroup->add(prim);
-            }
-        }
-        else {
             unlockInput(1);
-            addMessage(SOP_MESSAGE, "must connect scalp...");
-            boss->opEnd();
-            return error();
         }
 
         // Display based on state
@@ -1010,13 +994,15 @@ void SOP_AuthoringPlugin::onOptimize(fpreal t) {
 
     addMessage(SOP_MESSAGE, "Starting optimization...");
 
+    // Initialize optimizer with current parameters
+    float clumpRadius = getClumpRadius(t);
+    float clumpTightness = getClumpTightness(t);
+    int clumpCount = getClumpCount(t);
+
     // Run optimization loop
     SimpleOptimizer optimizer;
     for (int iter = 0; iter < maxIterations; ++iter) {
-        float clumpRadius = getClumpRadius(t);
-        float clumpTightness = getClumpTightness(t);
-        int clumpCount = getClumpCount(t);
-
+        // Step tweaks the parameters in the optimizer
         optimizer.step(
             guides,
             clumpRadius,
@@ -1036,6 +1022,9 @@ void SOP_AuthoringPlugin::onOptimize(fpreal t) {
             break;
         }
     }
+
+    // Get final optimized parameters from optimizer
+    synthesizedStrands = optimizer.getSynthesizedStrands();
 
     addMessage(SOP_MESSAGE, "Optimization complete!");
     forceRecook();
