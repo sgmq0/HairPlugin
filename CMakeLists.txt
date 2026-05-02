@@ -29,33 +29,39 @@ include_directories(
 )
 
 set(SOURCE_FILES
-    src/cpp/SOP_AuthoringPlugin.cpp
-    src/cpp/ClosestGuides.cpp
-    src/cpp/Strand.cpp
-    src/cpp/StrandSet.cpp
-    src/cpp/GuideSet.cpp
-    src/cpp/GeometryImporter.cpp
-    src/cpp/FeatureComputation.cpp
-    src/cpp/GuideSmoothing.cpp
-    src/cpp/DSO_AuthoringPlugin.cpp
-    src/cpp/ClusterVisualization.cpp
-    src/cpp/MeshToStrands.cpp
-    src/cpp/ClumpOperator.cpp
+src/cpp/DSO_AuthoringPlugin.cpp
+src/cpp/SOP_AuthoringPlugin.cpp
+src/cpp/Strand.cpp
+src/cpp/StrandSet.cpp
+src/cpp/GuideSet.cpp
+src/cpp/FeatureComputation.cpp
+src/cpp/ClumpOperator.cpp
+src/cpp/ClusterVisualization.cpp
+src/cpp/LossComputation.cpp
+src/cpp/SimpleOptimizer.cpp
+src/cpp/MeshToStrands.cpp
+src/cpp/GeometryImporter.cpp
+src/cpp/ExportManager.cpp
+src/cpp/GuideSmoothing.cpp
+src/cpp/ClosestGuides.cpp
+
 )
 
 set(HEADER_FILES
-    src/SOP_AuthoringPlugin.h
-    src/Strand.h
-    src/StrandSet.h
-    src/GuideSet.h
-    src/GeometryImporter.h
-    src/FeatureComputation.h
-    src/GuideSmoothing.h
-    src/ClosestGuides.h
-    include/external/nanoflann.hpp
-    src/MeshToStrands.h
-    src/ClusterVisualization.h
-    src/ClumpOperator.h
+src/SOP_AuthoringPlugin.h
+src/Strand.h
+src/StrandSet.h
+src/GuideSet.h
+src/FeatureComputation.h
+src/ClumpOperator.h
+src/ClusterVisualization.h
+src/LossComputation.h
+src/SimpleOptimizer.h
+src/MeshToStrands.h
+src/GeometryImporter.h
+src/ExportManager.h
+src/GuideSmoothing.h
+src/ClosestGuides.h
 )
 
 add_library(${PROJECT_NAME} SHARED ${SOURCE_FILES} ${HEADER_FILES})

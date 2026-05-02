@@ -18,6 +18,15 @@ Feature FeatureComputation::computeStrandFeature(const Strand& strand)
 {
     Feature feature;
 
+    // Safety check - skip if strand has no positions
+    if (strand.positions.empty())
+    {
+        // Return zero feature for empty strand
+        for (int i = 0; i < 7; ++i)
+            feature.values[i] = 0.0f;
+        return feature;
+    }
+
     // Root position (x, y, z)
     const UT_Vector3& root = strand.positions[0];
     feature.values[0] = root.x();
@@ -43,6 +52,13 @@ std::vector<Feature> FeatureComputation::computeAllFeatures(const StrandSet& str
     for (int i = 0; i < strands.getStrandCount(); ++i)
     {
         const Strand& strand = strands.getStrand(i);
+
+        // Skip strands with fewer than 2 points
+        if (strand.positions.size() < 2)
+        {
+            continue;
+        }
+
         Feature feature = computeStrandFeature(strand);
         features.push_back(feature);
     }

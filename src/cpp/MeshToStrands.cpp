@@ -23,6 +23,7 @@ StrandSet MeshToStrands::loadHairMeshFromOBJ(const std::string& filepath)
     {
         std::vector<UT_Vector3> vertices;
         std::vector<std::vector<int>> faces;
+        std::vector<std::vector<int>> lines;  // NEW: Store polylines
         std::string line;
 
         // Parse OBJ file
@@ -69,6 +70,23 @@ StrandSet MeshToStrands::loadHairMeshFromOBJ(const std::string& filepath)
                     faces.push_back(faceIndices);
                 }
             }
+            else if (prefix == "l")
+            {
+                // Polyline (curve) - NEW
+                std::vector<int> lineIndices;
+                int vertexIndex;
+
+                while (iss >> vertexIndex)
+                {
+                    // OBJ uses 1-based indexing
+                    lineIndices.push_back(vertexIndex - 1);
+                }
+
+                if (lineIndices.size() >= 2)
+                {
+                    lines.push_back(lineIndices);
+                }
+            }
         }
 
         file.close();
@@ -79,9 +97,44 @@ StrandSet MeshToStrands::loadHairMeshFromOBJ(const std::string& filepath)
             return result;
         }
 
+        // NEW: If file has polylines, load them directly as strands
+        if (!lines.empty())
+        {
+            for (const auto& lineIndices : lines)
+            {
+                Strand strand;
+                for (int idx : lineIndices)
+                {
+                    if (idx >= 0 && idx < (int)vertices.size())
+                    {
+                        strand.positions.push_back(vertices[idx]);
+                    }
+                }
+
+                if (strand.positions.size() >= 2)
+                {
+                    // Compute arc length
+                    strand.arcLength = 0.0f;
+                    for (size_t i = 1; i < strand.positions.size(); ++i)
+                    {
+                        float dist = (strand.positions[i] - strand.positions[i - 1]).length();
+                        strand.arcLength += dist;
+                    }
+                    result.addStrand(strand);
+                }
+            }
+
+            if (result.getStrandCount() > 0)
+            {
+                lastErrorMessage = "Successfully loaded " + std::to_string(result.getStrandCount()) + " polylines from OBJ";
+                return result;
+            }
+        }
+
+        // FALLBACK: If no polylines, extract curves from mesh faces
         if (faces.empty())
         {
-            lastErrorMessage = "No faces found in OBJ file";
+            lastErrorMessage = "No faces or polylines found in OBJ file";
             return result;
         }
 
