@@ -36,9 +36,9 @@ static PRM_Name	strandsName("strand_count", "Number of Strands");
 static PRM_Name	boundsName("bounding_box", "Bounds");
 static PRM_Name	statusName("load_status", "Status");
 
-// Week 5 - Mesh Loading
-static PRM_Name hairMeshFileName("hair_mesh_file", "Hair Mesh (OBJ)");
-static PRM_Name loadHairMeshBtn("load_hair_mesh", "Load Hair Mesh");
+//// Week 5 - Mesh Loading
+//static PRM_Name hairMeshFileName("hair_mesh_file", "Hair Mesh (OBJ)");
+//static PRM_Name loadHairMeshBtn("load_hair_mesh", "Load Hair Mesh");
 
 // Week 5 - Cluster Visualization
 static PRM_Name colorByClusterName("color_by_cluster", "Color by Cluster");
@@ -46,7 +46,7 @@ static PRM_Name selectedGuideName("selected_guide", "Selected Guide");
 static PRM_Range selectedGuideRange(PRM_RANGE_RESTRICTED, -1, PRM_RANGE_UI, 100);
 
 static PRM_Name numGuidesName("num_guides", "Number of Guides");
-static PRM_Range numGuidesRange(PRM_RANGE_RESTRICTED, 0, PRM_RANGE_UI, 100);
+static PRM_Range numGuidesRange(PRM_RANGE_RESTRICTED, 0, PRM_RANGE_UI, 1000);
 static PRM_Name	extractGuidesBtn("extract_guides", "Extract Guides");
 
 static PRM_Name radiusName("clump_radius", "Clump Radius");
@@ -99,18 +99,18 @@ SOP_AuthoringPlugin::myTemplateList[] = {
     PRM_Template(PRM_STRING, 1, &statusName, PRMzeroDefaults),
 
     // Hair Mesh Loading
-    PRM_Template(PRM_SEPARATOR, 1, new PRM_Name("sep_input", "--- Input ---")),
+    // ray - deprecated, we're using the 2 inputs instead.
+    /*PRM_Template(PRM_SEPARATOR, 1, new PRM_Name("sep_input", "--- Input ---")),
     PRM_Template(PRM_FILE, 1, &hairMeshFileName, new PRM_Default(0, "*.obj")),
-    PRM_Template(PRM_CALLBACK, 1, &loadHairMeshBtn, nullptr, 0, nullptr, &SOP_AuthoringPlugin::onLoadHairMeshCallback),
-
+    PRM_Template(PRM_CALLBACK, 1, &loadHairMeshBtn, nullptr, 0, nullptr, &SOP_AuthoringPlugin::onLoadHairMeshCallback),*/
 
     // change number of guide strands
-    PRM_Template(PRM_SEPARATOR, 1, new PRM_Name("sep_guides", "��� Guides ���")),
+    PRM_Template(PRM_SEPARATOR, 1, new PRM_Name("sep_guides", "--- Guides ---")),
     PRM_Template(PRM_INT, 1, &numGuidesName, new PRM_Default(20), 0, &numGuidesRange),
     PRM_Template(PRM_CALLBACK, 1, &extractGuidesBtn, nullptr, 0, nullptr, &SOP_AuthoringPlugin::onExtractGuidesCallback),
 
     // clump parameters
-    PRM_Template(PRM_SEPARATOR, 1, new PRM_Name("sep_synth", "��� Synthesis ���")),
+    PRM_Template(PRM_SEPARATOR, 1, new PRM_Name("sep_synth", "--- Synthesis ---")),
     PRM_Template(PRM_FLT, 1, &radiusName, new PRM_Default(0.1), 0, &radiusRange),
     PRM_Template(PRM_FLT, 1, &tightnessName, new PRM_Default(1.0), 0, &tightnessRange),
     PRM_Template(PRM_INT, 1, &countName, new PRM_Default(80), 0, &countRange),
@@ -135,7 +135,7 @@ SOP_AuthoringPlugin::myTemplateList[] = {
     PRM_Template(PRM_CALLBACK, 1, &synthesizeHairBtn, nullptr, 0, nullptr, &SOP_AuthoringPlugin::onSynthesizeHairCallback),
 
     // Week 5 - Cluster Visualization
-    PRM_Template(PRM_SEPARATOR, 1, new PRM_Name("sep_viz", "��� Visualization ���")),
+    PRM_Template(PRM_SEPARATOR, 1, new PRM_Name("sep_viz", "--- Visualization ---")),
     PRM_Template(PRM_TOGGLE, 1, &colorByClusterName, new PRM_Default(1)),
     PRM_Template(PRM_INT, 1, &selectedGuideName, new PRM_Default(-1), 0, &selectedGuideRange),
 
@@ -216,6 +216,53 @@ void SOP_AuthoringPlugin::onLoadHairMesh(fpreal t) {
     synthesisReady = false;
 
     forceRecook();
+}
+
+void SOP_AuthoringPlugin::inputConnectChanged(int which_input) {
+    //parent
+    SOP_Node::inputConnectChanged(which_input);
+
+    if (which_input == 0 && getInput(0)) {
+        addExtraInput(getInput(0), OP_INTEREST_DATA);
+
+        // reset
+        inputStrands = StrandSet();
+        strandRoots.clear();
+        guides = GuideSet();
+        synthesizedStrands = StrandSet();
+        statusMessage = "";
+
+        // reset flags
+        inputLoaded = false;
+        guidesReady = false;
+        synthesisReady = false;
+
+        forceRecook();
+    }
+
+    else if (which_input == 1) {
+        addExtraInput(getInput(1), OP_INTEREST_DATA);
+
+        if (getInput(1)) {
+            addMessage(SOP_MESSAGE, "input 2 connected");
+            scalpConnected = true;
+        }
+        else {
+            addMessage(SOP_MESSAGE, "input 2 disconnected");
+            scalpConnected = false;
+        }
+
+        forceRecook();
+    }
+}
+
+const char* SOP_AuthoringPlugin::inputLabel(OP_InputIdx idx) const
+{
+    switch (idx) {
+    case 0: return "Hair Curves";
+    case 1: return "Scalp Mesh";
+    default: return "Input";
+    }
 }
 
 void SOP_AuthoringPlugin::setDisplayStrings(fpreal now, std::string strand_str, std::string bounds_str, std::string status_str) {
@@ -1070,7 +1117,7 @@ void SOP_AuthoringPlugin::onExport(fpreal t) {
 
         // Show metrics in message
         std::string metrics = "Input: " + std::to_string(inputStrands.getStrandCount()) +
-            " strands → Output: " + std::to_string(synthesizedStrands.getStrandCount()) +
+            " strands -> Output: " + std::to_string(synthesizedStrands.getStrandCount()) +
             " strands";
         addMessage(SOP_MESSAGE, metrics.c_str());
     }
