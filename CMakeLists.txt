@@ -44,18 +44,18 @@ set(SOURCE_FILES
 )
 
 set(HEADER_FILES
-    include/SOP_AuthoringPlugin.h
-    include/Strand.h
-    include/StrandSet.h
-    include/GuideSet.h
-    include/GeometryImporter.h
-    include/FeatureComputation.h
-    include/GuideSmoothing.h
-    include/ClosestGuides.h
+    src/SOP_AuthoringPlugin.h
+    src/Strand.h
+    src/StrandSet.h
+    src/GuideSet.h
+    src/GeometryImporter.h
+    src/FeatureComputation.h
+    src/GuideSmoothing.h
+    src/ClosestGuides.h
     include/external/nanoflann.hpp
-    include/MeshToStrands.h
-    include/ClusterVisualization.h
-    include/ClumpOperator.h
+    src/MeshToStrands.h
+    src/ClusterVisualization.h
+    src/ClumpOperator.h
 )
 
 add_library(${PROJECT_NAME} SHARED ${SOURCE_FILES} ${HEADER_FILES})
