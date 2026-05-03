@@ -56,6 +56,12 @@ public:
         return evalInt("clump_count", 0, t);
     }
 
+    // Scale operator
+    float getScaleFactor(fpreal t = 0) const
+    {
+        return evalFloat("scale_factor", 0, t);
+    }
+
     // Twist operator
     float getTwistAmount(fpreal t = 0) const
     {
@@ -112,7 +118,7 @@ public:
 
 private:
     // display functions
-    void displayStrandSet(GU_Detail* gdp, const StrandSet& strands);
+    void displayStrandSet(GU_Detail* gdp, const StrandSet& strands, bool useOriginal);
     void displayGuides(GU_Detail* gdp, const GuideSet& guides);
     void setDisplayStrings(fpreal now, std::string strand_str, std::string bounds_str, std::string status_str);
 
@@ -162,6 +168,9 @@ private:
     bool needFirstSynthesis = false;
 
     // Track parameter changes for auto-resynthesis
+    float cachedScaleFactor = -1.0f;
+
+
     float cachedClumpRadius = -1.0f;
     float cachedClumpTightness = -1.0f;
     int cachedClumpCount = -1;

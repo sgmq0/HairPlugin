@@ -12,6 +12,8 @@ class GuideSet;
 struct Strand
 {
     std::vector<UT_Vector3> positions;
+    std::vector<UT_Vector3> deformedPositions;
+
     std::vector<float> radius;
     float arcLength;
     int clusterID;
@@ -32,6 +34,8 @@ struct Strand
     void computeUVLocation(GU_Detail* gdp, GU_MinInfo* minInfo);
     void computeGuideWeights(GuideSet* guideSet);
     UT_Vector3 getRoot() const;
+
+    void applyScale(float u, float scaleFactor);
 };
 
 #endif

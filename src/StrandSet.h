@@ -15,7 +15,7 @@ public:
     void addStrand(const Strand& strand);
     Strand& getStrand(int index);
     const Strand& getStrand(int index) const;
-    void applyOperators(const GuideSet& guides, const ClumpParams& params);
+    void applyScale(const GuideSet& guides, const ClumpParams& params);
 
     int getStrandCount() const;
     UT_BoundingBox getBounds() const;

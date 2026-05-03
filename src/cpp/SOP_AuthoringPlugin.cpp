@@ -57,6 +57,10 @@ static PRM_Name countName("clump_count", "Clump Count");
 static PRM_Range countRange(PRM_RANGE_RESTRICTED, 1, PRM_RANGE_UI, 100);
 static PRM_Name synthesizeHairBtn("synthesize_strands", "Synthesize Hair");
 
+// Clump operator
+static PRM_Name scaleFactorName("scale_factor", "Scale Factor");
+static PRM_Range scaleFactorRange(PRM_RANGE_RESTRICTED, 0.0f, PRM_RANGE_UI, 2.0f);
+
 // Twist operator
 static PRM_Name twistAmountName("twist_amount", "Twist Amount");
 static PRM_Range twistAmountRange(PRM_RANGE_RESTRICTED, 0.0f, PRM_RANGE_UI, 360.0f);
@@ -114,6 +118,10 @@ SOP_AuthoringPlugin::myTemplateList[] = {
     PRM_Template(PRM_FLT, 1, &radiusName, new PRM_Default(0.1), 0, &radiusRange),
     PRM_Template(PRM_FLT, 1, &tightnessName, new PRM_Default(1.0), 0, &tightnessRange),
     PRM_Template(PRM_INT, 1, &countName, new PRM_Default(80), 0, &countRange),
+
+    // scale parameters
+    PRM_Template(PRM_SEPARATOR, 1, new PRM_Name("sep_scale", "--- Scale ---")),
+    PRM_Template(PRM_FLT, 1, &scaleFactorName, new PRM_Default(0.0), 0, &scaleFactorRange),
 
     // Twist parameters
     PRM_Template(PRM_SEPARATOR, 1, new PRM_Name("sep_twist", "--- Twist ---")),
@@ -410,13 +418,15 @@ SOP_AuthoringPlugin::cookMySop(OP_Context& context)
                 addMessage(SOP_MESSAGE, "Failed to synthesize hair");
                 return error();
             }
-            
+
             needFirstSynthesis = false;
         }
 
         // Display based on state
         if (synthesisReady) {
+            
             // Check if any clump parameters have changed
+            float currentScaleFactor = getScaleFactor(now);
             float currentRadius = getClumpRadius(now);
             float currentTightness = getClumpTightness(now);
             int currentCount = getClumpCount(now);
@@ -426,53 +436,84 @@ SOP_AuthoringPlugin::cookMySop(OP_Context& context)
             float currentNoiseAmplitude = getNoiseAmplitude(now);
             float currentNoiseFrequency = getNoiseFrequency(now);
 
-            // If any parameter changed, re-synthesize
+            // if SCALE changed, re-synthesize
+            if (std::abs(currentScaleFactor - cachedScaleFactor) > 1e-6f ) 
+            {
+                // Parameters changed
+                hairParams.scaleFactor = currentScaleFactor;
+
+                // Re-synthesize
+                synthesizedStrands.applyScale(guides, hairParams);
+
+                // Update cached values
+                cachedScaleFactor = currentScaleFactor;
+            }
+
+            // 2. TODO: Clump
             if (std::abs(currentRadius - cachedClumpRadius) > 1e-6f ||
                 std::abs(currentTightness - cachedClumpTightness) > 1e-6f ||
-                currentCount != cachedClumpCount ||
-                std::abs(currentTwistAmount - cachedTwistAmount) > 1e-6f ||
-                std::abs(currentTwistFrequency - cachedTwistFrequency) > 1e-6f ||
-                std::abs(currentBendMagnitude - cachedBendMagnitude) > 1e-6f ||
-                std::abs(getBendDirX(now) - cachedBendDirX) > 1e-6f ||
-                std::abs(getBendDirY(now) - cachedBendDirY) > 1e-6f ||
-                std::abs(getBendDirZ(now) - cachedBendDirZ) > 1e-6f ||
-                std::abs(currentNoiseAmplitude - cachedNoiseAmplitude) > 1e-6f ||
-                std::abs(currentNoiseFrequency - cachedNoiseFrequency) > 1e-6f) {
-
-                // Parameters changed - re-synthesize with new values
+                currentCount != cachedClumpCount) 
+            {
+                // Parameters changed
                 hairParams.clumpRadius = currentRadius;
                 hairParams.clumpTightness = currentTightness;
                 hairParams.clumpCount = currentCount;
-                hairParams.twistAmount = currentTwistAmount;
-                hairParams.twistFrequency = currentTwistFrequency;
-                hairParams.bendMagnitude = currentBendMagnitude;
-                hairParams.bendDirection.assign(
-                    getBendDirX(now),
-                    getBendDirY(now),
-                    getBendDirZ(now));
-                hairParams.noiseAmplitude = currentNoiseAmplitude;
-                hairParams.noiseFrequency = currentNoiseFrequency;
 
                 // Re-synthesize
-                synthesizedStrands.applyOperators(guides, hairParams);
-                //synthesizedStrands = ClumpOperator::clumpFromGuides(guides, hairParams);
 
                 // Update cached values
                 cachedClumpRadius = currentRadius;
                 cachedClumpTightness = currentTightness;
                 cachedClumpCount = currentCount;
-                cachedTwistAmount = currentTwistAmount;
-                cachedTwistFrequency = currentTwistFrequency;
+            }
+
+            // 3. TODO: Bend
+            if (std::abs(currentBendMagnitude - cachedBendMagnitude) > 1e-6f ||
+                std::abs(getBendDirX(now) - cachedBendDirX) > 1e-6f ||
+                std::abs(getBendDirY(now) - cachedBendDirY) > 1e-6f ||
+                std::abs(getBendDirZ(now) - cachedBendDirZ) > 1e-6f)
+            {
+                // Parameters changed
+                hairParams.bendMagnitude = currentBendMagnitude;
+                hairParams.bendDirection.assign(
+                    getBendDirX(now),
+                    getBendDirY(now),
+                    getBendDirZ(now));
+
+                // Re-synthesize
+
+                // Update cached values
                 cachedBendMagnitude = currentBendMagnitude;
                 cachedBendDirX = getBendDirX(now);
                 cachedBendDirY = getBendDirY(now);
                 cachedBendDirZ = getBendDirZ(now);
+            }
+
+            // 4. TODO: Curl
+            if (true)
+            {
+                // Parameters changed
+                // Re-synthesize
+                // Update cached values
+            }
+
+            // 5. TODO: Frizz
+            if (std::abs(currentNoiseAmplitude - cachedNoiseAmplitude) > 1e-6f ||
+                std::abs(currentNoiseFrequency - cachedNoiseFrequency) > 1e-6f)
+            {
+                // Parameters changed
+                hairParams.noiseAmplitude = currentNoiseAmplitude;
+                hairParams.noiseFrequency = currentNoiseFrequency;
+
+                // Re-synthesize
+
+                // Update cached values
                 cachedNoiseAmplitude = currentNoiseAmplitude;
                 cachedNoiseFrequency = currentNoiseFrequency;
             }
 
             // Display synthesized strands
-            displayStrandSet(gdp, synthesizedStrands);
+            displayStrandSet(gdp, synthesizedStrands, false);
             displayGuides(gdp, guides);
         }
 
@@ -494,7 +535,7 @@ SOP_AuthoringPlugin::cookMySop(OP_Context& context)
 
         if (!guidesReady && !synthesisReady) {
             // just display input by default
-            displayStrandSet(gdp, inputStrands);
+            displayStrandSet(gdp, inputStrands, true);
         }
 
         // make sure to free input
@@ -555,6 +596,9 @@ void SOP_AuthoringPlugin::onSynthesizeHair(fpreal t) {
     hairParams.clumpTightness = getClumpTightness(t);
     hairParams.clumpCount = getClumpCount(t);
 
+    // scale operator
+    hairParams.scaleFactor = getScaleFactor(t);
+
     // Twist operator
     hairParams.twistAmount = getTwistAmount(t);
     hairParams.twistFrequency = getTwistFrequency(t);
@@ -571,6 +615,7 @@ void SOP_AuthoringPlugin::onSynthesizeHair(fpreal t) {
     hairParams.noiseFrequency = getNoiseFrequency(t);
 
     // Cache current parameters for change detection
+    cachedScaleFactor = getScaleFactor(t);
     cachedClumpRadius = getClumpRadius(t);
     cachedClumpTightness = getClumpTightness(t);
     cachedClumpCount = getClumpCount(t);
@@ -909,6 +954,12 @@ void SOP_AuthoringPlugin::synthesizeHair(GU_Detail* gdp)
         // find which cluster it belongs to
         strand.clusterID = inputStrands.getStrand(i).clusterID;
 
+        // set deformed positions
+        for (UT_Vector3 v : strand.positions) {
+            strand.deformedPositions.push_back(v);
+        }
+
+        // add strand to synthesized strands
         if (strand.arcLength > 1e-6f)
         {
             synthesizedStrands.addStrand(strand);
@@ -928,7 +979,7 @@ void SOP_AuthoringPlugin::extractRootsFromInputStrands()
 //                             DISPLAY FUNCTIONS
 // ============================================================================
 
-void SOP_AuthoringPlugin::displayStrandSet(GU_Detail* gdp, const StrandSet& strands)
+void SOP_AuthoringPlugin::displayStrandSet(GU_Detail* gdp, const StrandSet& strands, bool useOriginal)
 {
     // TASK 1.3 - DISPLAY INPUT GEOMETRY (VISUALIZATION)
     // Week 5 - Color by cluster
@@ -950,7 +1001,15 @@ void SOP_AuthoringPlugin::displayStrandSet(GU_Detail* gdp, const StrandSet& stra
     // Render each strand
     for (int i = 0; i < strands.getStrandCount(); ++i) {
         const Strand& strand = strands.getStrand(i);
-        if (strand.positions.size() < 2) continue;
+
+        // select which positions are rendered
+        std::vector<UT_Vector3> pos;
+        if (useOriginal)
+            pos = strand.positions;
+        else
+            pos = strand.deformedPositions;
+
+        if (pos.size() < 2) continue;
 
         // Get color for this strand
         UT_Vector3 strandColor;
@@ -979,12 +1038,12 @@ void SOP_AuthoringPlugin::displayStrandSet(GU_Detail* gdp, const StrandSet& stra
         }
 
         // Create geometry
-        GA_Offset startPt = gdp->appendPointBlock(strand.positions.size());
-        for (int p = 0; p < (int)strand.positions.size(); ++p)
-            gdp->setPos3(startPt + p, strand.positions[p]);
+        GA_Offset startPt = gdp->appendPointBlock(pos.size());
+        for (int p = 0; p < (int) pos.size(); ++p)
+            gdp->setPos3(startPt + p, pos[p]);
 
-        GEO_PrimPoly* prim = GEO_PrimPoly::build(gdp, strand.positions.size(), GU_POLY_OPEN, false);
-        for (int p = 0; p < (int)strand.positions.size(); ++p)
+        GEO_PrimPoly* prim = GEO_PrimPoly::build(gdp, pos.size(), GU_POLY_OPEN, false);
+        for (int p = 0; p < (int) pos.size(); ++p)
             prim->setPointOffset(p, startPt + p);
 
         // Apply color

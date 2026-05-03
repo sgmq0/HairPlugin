@@ -6,6 +6,8 @@
 // Full parameter struct for clumping with all operators
 struct ClumpParams
 {
+    float scaleFactor;
+
     float clumpRadius;
     float clumpTightness;
     int clumpCount;

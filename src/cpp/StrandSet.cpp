@@ -1,5 +1,7 @@
 #include "StrandSet.h"
+
 #include <algorithm>
+#include <random>
 
 StrandSet::StrandSet()
     : boundsValid(false)
@@ -29,19 +31,15 @@ const Strand& StrandSet::getStrand(int index) const
     return strands[index];
 }
 
-void StrandSet::applyOperators(const GuideSet& guides, const ClumpParams& params)
+void StrandSet::applyScale(const GuideSet& guides, const ClumpParams& params)
 {
+    std::random_device rd{};
+    std::mt19937 gen{ rd() };
+    std::normal_distribution<float> d{ 0.0f, 1.0f };
+
     for (Strand& s : strands) {
-        // 1. TODO: Scale
-
-        // 2. TODO: Clump
-
-        // 3. TODO: Bend
-
-        // 4. TODO: Curl
-
-        // 5. TODO: Frizz
-
+        s.deformedPositions = s.positions;
+        s.applyScale(d(gen), params.scaleFactor);
     }
 }
 
