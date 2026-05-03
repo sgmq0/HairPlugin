@@ -66,14 +66,10 @@ static PRM_Name twistFrequencyName("twist_frequency", "Twist Frequency");
 static PRM_Range twistFrequencyRange(PRM_RANGE_RESTRICTED, 0.0f, PRM_RANGE_UI, 10.0f);
 
 // Bend operator
-static PRM_Name bendMagnitudeName("bend_magnitude", "Bend Magnitude");
-static PRM_Range bendMagnitudeRange(PRM_RANGE_RESTRICTED, 0.0f, PRM_RANGE_UI, 1.0f);
-static PRM_Name bendDirXName("bend_dir_x", "Bend X");
-static PRM_Range bendDirXRange(PRM_RANGE_RESTRICTED, -1.0f, PRM_RANGE_UI, 1.0f);
-static PRM_Name bendDirYName("bend_dir_y", "Bend Y");
-static PRM_Range bendDirYRange(PRM_RANGE_RESTRICTED, -1.0f, PRM_RANGE_UI, 1.0f);
-static PRM_Name bendDirZName("bend_dir_z", "Bend Z");
-static PRM_Range bendDirZRange(PRM_RANGE_RESTRICTED, -1.0f, PRM_RANGE_UI, 1.0f);
+static PRM_Name bendAngleName("bend_angle", "Bend Angle");
+static PRM_Range bendAngleRange(PRM_RANGE_UI, -60.0f, PRM_RANGE_UI, 60.0f);
+static PRM_Name bendStartName("bend_start", "Bend Start");
+static PRM_Range bendStartRange(PRM_RANGE_RESTRICTED, 0.0f, PRM_RANGE_UI, 10.0f);
 
 // Noise operator
 static PRM_Name noiseAmplitudeName("noise_amplitude", "Noise Amplitude");
@@ -123,17 +119,15 @@ SOP_AuthoringPlugin::myTemplateList[] = {
     PRM_Template(PRM_SEPARATOR, 1, new PRM_Name("sep_synth", "--- Clump ---")),
     PRM_Template(PRM_FLT, 1, &clumpProfileName, new PRM_Default(0.1), 0, &clumpProfileRange),
 
+    // Bend parameters
+    PRM_Template(PRM_SEPARATOR, 1, new PRM_Name("sep_bend", "--- Bend ---")),
+    PRM_Template(PRM_FLT, 1, &bendAngleName, new PRM_Default(0.0), 0, &bendAngleRange),
+    PRM_Template(PRM_FLT, 1, &bendStartName, new PRM_Default(0.0), 0, &bendStartRange),
+
     // Twist parameters
     PRM_Template(PRM_SEPARATOR, 1, new PRM_Name("sep_twist", "--- Twist ---")),
     PRM_Template(PRM_FLT, 1, &twistAmountName, new PRM_Default(0.0), 0, &twistAmountRange),
     PRM_Template(PRM_FLT, 1, &twistFrequencyName, new PRM_Default(1.0), 0, &twistFrequencyRange),
-
-    // Bend parameters
-    PRM_Template(PRM_SEPARATOR, 1, new PRM_Name("sep_bend", "--- Bend ---")),
-    PRM_Template(PRM_FLT, 1, &bendMagnitudeName, new PRM_Default(0.0), 0, &bendMagnitudeRange),
-    PRM_Template(PRM_FLT, 1, &bendDirXName, new PRM_Default(0.0), 0, &bendDirXRange),
-    PRM_Template(PRM_FLT, 1, &bendDirYName, new PRM_Default(0.0), 0, &bendDirYRange),
-    PRM_Template(PRM_FLT, 1, &bendDirZName, new PRM_Default(1.0), 0, &bendDirZRange),
 
     // Noise parameters
     PRM_Template(PRM_SEPARATOR, 1, new PRM_Name("sep_noise", "--- Noise ---")),
@@ -330,6 +324,7 @@ SOP_AuthoringPlugin::cookMySop(OP_Context& context)
 
             // Load curves from Houdini geometry
             inputStrands = GeometryImporter::loadFromHoudiniGeometry(input_geo);
+            addMessage(SOP_MESSAGE, "LOADED");
 
             if (!GeometryImporter::getLastError().empty())
             {
@@ -430,52 +425,38 @@ SOP_AuthoringPlugin::cookMySop(OP_Context& context)
             // Check if any operator parameters have changed
             float currentScaleFactor = getScaleFactor(now); 
             float currentClumpProfile = getClumpProfile(now);
+            float currentBendAngle = getBendAngle(now);
+            float currentBendStart = getBendStart(now);
 
             float currentTwistAmount = getTwistAmount(now);
             float currentTwistFrequency = getTwistFrequency(now);
-            float currentBendMagnitude = getBendMagnitude(now);
             float currentNoiseAmplitude = getNoiseAmplitude(now);
             float currentNoiseFrequency = getNoiseFrequency(now);
 
             synthesizedStrands.setDeformedAsPos();
 
             // if anything changed, re-synthesize
-            if (std::abs(currentScaleFactor - cachedScaleFactor) > 1e-6f  || 
-                std::abs(currentClumpProfile - cachedClumpProfile) > 1e-6f
+            if (std::abs(currentScaleFactor - cachedScaleFactor) > 1e-6f || 
+                std::abs(currentClumpProfile - cachedClumpProfile) > 1e-6f ||
+                std::abs(currentBendAngle - cachedBendAngle) > 1e-6f ||
+                std::abs(currentBendStart - cachedBendStart) > 1e-6f
             ) {
                 // Parameters changed
                 hairParams.scaleFactor = currentScaleFactor;
                 hairParams.clumpProfile = currentClumpProfile;
+                hairParams.bendAngle = currentBendAngle;
+                hairParams.bendStart = currentBendStart;
 
                 // Re-synthesize
-                synthesizedStrands.applyScale(guides, hairParams.scaleFactor);
+                synthesizedStrands.applyScale(hairParams.scaleFactor);
                 synthesizedStrands.applyClump(guides, hairParams.clumpProfile);
+                synthesizedStrands.applyBend(guides, hairParams.bendAngle, hairParams.bendStart);
 
                 // Update cached values
                 cachedScaleFactor = currentScaleFactor;
                 cachedClumpProfile = currentClumpProfile;
-            }
-
-            // 3. TODO: Bend
-            if (std::abs(currentBendMagnitude - cachedBendMagnitude) > 1e-6f ||
-                std::abs(getBendDirX(now) - cachedBendDirX) > 1e-6f ||
-                std::abs(getBendDirY(now) - cachedBendDirY) > 1e-6f ||
-                std::abs(getBendDirZ(now) - cachedBendDirZ) > 1e-6f)
-            {
-                // Parameters changed
-                hairParams.bendMagnitude = currentBendMagnitude;
-                hairParams.bendDirection.assign(
-                    getBendDirX(now),
-                    getBendDirY(now),
-                    getBendDirZ(now));
-
-                // Re-synthesize
-
-                // Update cached values
-                cachedBendMagnitude = currentBendMagnitude;
-                cachedBendDirX = getBendDirX(now);
-                cachedBendDirY = getBendDirY(now);
-                cachedBendDirZ = getBendDirZ(now);
+                cachedBendAngle = currentBendAngle;
+                cachedBendStart = currentBendStart;
             }
 
             // 4. TODO: Curl
@@ -588,16 +569,13 @@ void SOP_AuthoringPlugin::onSynthesizeHair(fpreal t) {
     // clump operator
     hairParams.clumpProfile = getClumpProfile(t);
 
+    // Bend operator
+    hairParams.bendAngle = getBendAngle(t);
+    hairParams.bendStart = getBendStart(t);
+
     // Twist operator
     hairParams.twistAmount = getTwistAmount(t);
     hairParams.twistFrequency = getTwistFrequency(t);
-
-    // Bend operator
-    hairParams.bendMagnitude = getBendMagnitude(t);
-    hairParams.bendDirection.assign(
-        getBendDirX(t),
-        getBendDirY(t),
-        getBendDirZ(t));
 
     // Noise operator
     hairParams.noiseAmplitude = getNoiseAmplitude(t);
@@ -606,13 +584,11 @@ void SOP_AuthoringPlugin::onSynthesizeHair(fpreal t) {
     // Cache current parameters for change detection
     cachedScaleFactor = getScaleFactor(t);
     cachedClumpProfile = getClumpProfile(t);
+    cachedBendAngle = getBendAngle(t);
+    cachedBendStart = getBendStart(t);
 
     cachedTwistAmount = getTwistAmount(t);
     cachedTwistFrequency = getTwistFrequency(t);
-    cachedBendMagnitude = getBendMagnitude(t);
-    cachedBendDirX = getBendDirX(t);
-    cachedBendDirY = getBendDirY(t);
-    cachedBendDirZ = getBendDirZ(t);
     cachedNoiseAmplitude = getNoiseAmplitude(t);
     cachedNoiseFrequency = getNoiseFrequency(t);
 
@@ -825,6 +801,7 @@ void SOP_AuthoringPlugin::clusterGuides(int numGuides, std::vector<Feature> feat
 
         Strand& s = inputStrands.getStrand(bestStrand);
         s.clusterID = c;
+
         guideStrands.push_back(s);
     }
 
@@ -849,6 +826,8 @@ void SOP_AuthoringPlugin::smoothGuides()
         statusMessage = "ERROR: No guides to smooth";
         return;
     }
+
+    // TODO: Why don't we have this?
 }
 
 void SOP_AuthoringPlugin::synthesizeHair(GU_Detail* gdp)

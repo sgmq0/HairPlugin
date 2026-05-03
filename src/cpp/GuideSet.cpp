@@ -1,6 +1,7 @@
 #include "GuideSet.h"
 #include "GuideSmoothing.h"
 #include <algorithm>
+#include <random>
 #include <GU/GU_RayIntersect.h>
 #include <GEO/GEO_PrimPoly.h>
 #include <GA/GA_Handle.h>
@@ -22,6 +23,11 @@ void GuideSet::extractFromStrands(
 
     if (strands.empty() || numGuides <= 0)
         return;
+
+    // random engine
+    std::random_device rd{};
+    std::mt19937 gen{ rd() };
+    std::normal_distribution<float> d{ 0.0f, 1.0f };
 
     // Group strands into clusters
     clusterMap.resize(strands.size());
@@ -84,6 +90,9 @@ void GuideSet::extractFromStrands(
 
         // Smooth the guide curve
         Strand smoothedGuide = GuideSmoothing::smoothGuideCurve(avgStrand, 10);
+
+        // set random value
+        smoothedGuide.bendRand = d(gen);
 
         guides.push_back(smoothedGuide);
     }

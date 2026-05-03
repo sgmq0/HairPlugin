@@ -38,7 +38,7 @@ void StrandSet::setDeformedAsPos() {
     }
 }
 
-void StrandSet::applyScale(const GuideSet& guides, const float scaleFactor)
+void StrandSet::applyScale(const float scaleFactor)
 {
     std::random_device rd{};
     std::mt19937 gen{ rd() };
@@ -66,11 +66,7 @@ void StrandSet::applyClump(const GuideSet& guides, const float clumpProfile)
         std::vector<UT_Vector3> pos;
         pos.push_back(s.getRoot());
 
-        // recompute arc length from deformed positions
-        float length = 0.0f;
-        for (int i = 1; i < s.deformedPositions.size(); ++i)
-            length += (s.deformedPositions.at(i) - s.deformedPositions.at(i - 1)).length();
-
+        float length = s.arcLength;
         float dist = 0;
         for (int i = 1; i < s.positions.size(); ++i) {
             // length of i-th segment
@@ -82,6 +78,83 @@ void StrandSet::applyClump(const GuideSet& guides, const float clumpProfile)
 
             UT_Vector3 position = (1.0f - decayAmt) * s.deformedPositions.at(i) + decayAmt * guide.positions.at(i);
             pos.push_back(position);
+        }
+
+        s.deformedPositions = pos;
+    }
+}
+
+float sigmoid(float x)
+{
+    return 1.0f / (1.0f + exp(-x));
+}
+
+void StrandSet::applyBend(const GuideSet& guides, const float bendAngle, const float bendStart)
+{
+    std::random_device rd{};
+    std::mt19937 gen{ rd() };
+    std::normal_distribution<float> d{ 0.0f, 1.0f };
+
+    float bendAngleRadians = SYSdegToRad(bendAngle);
+
+    for (Strand& s : strands) {
+        Strand guide = guides.getGuide(s.clusterID);
+        //float u = d(gen);
+        float u = guide.bendRand;
+
+        // find guide root direction
+        UT_Vector3 guideRootDir = guide.positions.at(1) - guide.positions.at(0);
+        guideRootDir.normalize();
+
+        // find bend axis
+        UT_Vector3 bendAxisAux = { 1.0f, 0.0f, 0.0f };
+        if (abs(guideRootDir.y()) < 0.1f)
+            bendAxisAux = { 0.0f, 1.0f, 0.0f };
+        UT_Vector3 bendAxis = cross(guideRootDir, bendAxisAux);
+
+        // construct axis-angle matrix
+        UT_Matrix3F R1;
+        R1.identity();
+        R1.rotate(guideRootDir, M_PI * u);
+
+        // rotate bend axis
+        UT_Vector3 rotatedBendAxis = bendAxis * R1 / (bendAxis * R1).length();
+
+        // set root position
+        std::vector<UT_Vector3> pos;
+        pos.push_back(s.getRoot());
+
+        float length = s.arcLength;
+        float dist = 0.0f;
+        float lengthAfterBend = 0.0f;    // lprime
+        float normDistanceFromBend = 0.0f;
+        UT_Vector3 bendSegmentSum = { 0.0f, 0.0f, 0.0f };
+        for (int i = 1; i < s.positions.size(); ++i) {
+            // length of i-th segment
+            float segmentLength = (s.deformedPositions.at(i) - s.deformedPositions.at(i - 1)).length();
+            dist += segmentLength;
+            float normDist = dist / length; // v_j
+
+            // start smooth indicator
+            float startSmooth = sigmoid(10 * (normDist - bendStart));
+
+            // length after bend start
+            lengthAfterBend += segmentLength * startSmooth;
+
+            // norm. distance from bend start
+            normDistanceFromBend += (segmentLength * startSmooth) / lengthAfterBend;
+
+            // contruct r2 matrix
+            UT_Matrix3F R2;
+            R2.identity();
+            R2.rotate(rotatedBendAxis, bendAngleRadians * normDistanceFromBend);
+
+            // find bend segment
+            UT_Vector3 bendSegment = (s.deformedPositions.at(i) - s.deformedPositions.at(i-1)) * R2;
+
+            // sum segments to get vertices
+            bendSegmentSum += bendSegment;
+            pos.push_back(s.getRoot() + bendSegmentSum);
         }
 
         s.deformedPositions = pos;

@@ -19,8 +19,9 @@ public:
 
     // operators
     void setDeformedAsPos();
-    void applyScale(const GuideSet& guides, const float scaleFactor);
+    void applyScale(const float scaleFactor);
     void applyClump(const GuideSet& guides, const float clumpProfile);
+    void applyBend(const GuideSet& guides, const float bendAngle, const float bendStart);
 
     int getStrandCount() const;
     UT_BoundingBox getBounds() const;

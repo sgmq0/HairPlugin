@@ -6,15 +6,18 @@
 // Full parameter struct for clumping with all operators
 struct ClumpParams
 {
+    // scale
     float scaleFactor;
 
+    // clump
     float clumpProfile;
+
+    // bend
+    float bendAngle;
+    float bendStart;
 
     float twistAmount;
     float twistFrequency;
-
-    float bendMagnitude;
-    UT_Vector3 bendDirection;
 
     float noiseAmplitude;
     float noiseFrequency;

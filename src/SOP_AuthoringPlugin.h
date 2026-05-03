@@ -65,24 +65,14 @@ public:
     }
 
     // Bend operator
-    float getBendMagnitude(fpreal t = 0) const
+    float getBendAngle(fpreal t = 0) const
     {
-        return evalFloat("bend_magnitude", 0, t);
+        return evalFloat("bend_angle", 0, t);
     }
 
-    float getBendDirX(fpreal t = 0) const
+    float getBendStart(fpreal t = 0) const
     {
-        return evalFloat("bend_dir_x", 0, t);
-    }
-
-    float getBendDirY(fpreal t = 0) const
-    {
-        return evalFloat("bend_dir_y", 0, t);
-    }
-
-    float getBendDirZ(fpreal t = 0) const
-    {
-        return evalFloat("bend_dir_z", 0, t);
+        return evalFloat("bend_start", 0, t);
     }
 
     // Noise operator
@@ -166,13 +156,11 @@ private:
     // Track parameter changes for auto-resynthesis
     float cachedScaleFactor = -1.0f;
     float cachedClumpProfile = -1.0f;
+    float cachedBendAngle = -1.0f;
+    float cachedBendStart = -1.0f;
 
     float cachedTwistAmount = -1.0f;
     float cachedTwistFrequency = -1.0f;
-    float cachedBendMagnitude = -1.0f;
-    float cachedBendDirX = -999.0f;
-    float cachedBendDirY = -999.0f;
-    float cachedBendDirZ = -999.0f;
     float cachedNoiseAmplitude = -1.0f;
     float cachedNoiseFrequency = -1.0f;
 };
