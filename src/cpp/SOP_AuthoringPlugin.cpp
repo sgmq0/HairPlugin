@@ -94,6 +94,9 @@ static PRM_Name exportPathName("export_path", "Export Path");
 static PRM_Name exportMetricsName("export_metrics", "Metrics");
 static PRM_Name exportBtn("export", "Export Synthesized Hair");
 
+// show/hide scalp checkbox
+static PRM_Name optShowScalp("opt_show_scalp", "Show/Hide Scalp");
+
 PRM_Template
 SOP_AuthoringPlugin::myTemplateList[] = {
 
@@ -112,16 +115,17 @@ SOP_AuthoringPlugin::myTemplateList[] = {
     PRM_Template(PRM_SEPARATOR, 1, new PRM_Name("sep_guides", "--- Guides ---")),
     PRM_Template(PRM_INT, 1, &numGuidesName, new PRM_Default(20), 0, &numGuidesRange),
     PRM_Template(PRM_CALLBACK, 1, &extractGuidesBtn, nullptr, 0, nullptr, &SOP_AuthoringPlugin::onExtractGuidesCallback),
-
-    // clump parameters
-    PRM_Template(PRM_SEPARATOR, 1, new PRM_Name("sep_synth", "--- Synthesis ---")),
-    PRM_Template(PRM_FLT, 1, &radiusName, new PRM_Default(0.1), 0, &radiusRange),
-    PRM_Template(PRM_FLT, 1, &tightnessName, new PRM_Default(1.0), 0, &tightnessRange),
-    PRM_Template(PRM_INT, 1, &countName, new PRM_Default(80), 0, &countRange),
+    PRM_Template(PRM_TOGGLE, 1, &optShowScalp, new PRM_Default(1)),
 
     // scale parameters
     PRM_Template(PRM_SEPARATOR, 1, new PRM_Name("sep_scale", "--- Scale ---")),
     PRM_Template(PRM_FLT, 1, &scaleFactorName, new PRM_Default(0.0), 0, &scaleFactorRange),
+
+    // clump parameters
+    PRM_Template(PRM_SEPARATOR, 1, new PRM_Name("sep_synth", "--- Clump ---")),
+    PRM_Template(PRM_FLT, 1, &radiusName, new PRM_Default(0.1), 0, &radiusRange),
+    PRM_Template(PRM_FLT, 1, &tightnessName, new PRM_Default(1.0), 0, &tightnessRange),
+    PRM_Template(PRM_INT, 1, &countName, new PRM_Default(80), 0, &countRange),
 
     // Twist parameters
     PRM_Template(PRM_SEPARATOR, 1, new PRM_Name("sep_twist", "--- Twist ---")),
@@ -395,7 +399,9 @@ SOP_AuthoringPlugin::cookMySop(OP_Context& context)
                     GA_Index numPrims = gdp->getNumPrimitives();
 
                     // show the scalp
-                    gdp->copy(*input_geo, GEO_COPY_ADD);
+                    if (getShowScalpEnabled(now)) {
+                        gdp->copy(*input_geo, GEO_COPY_ADD);
+                    }
 
                     // add scalp to its own group so we can isolate it later
                     GA_PrimitiveGroup* scalpGroup = gdp->newPrimitiveGroup("scalp");

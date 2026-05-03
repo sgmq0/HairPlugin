@@ -39,7 +39,14 @@ void StrandSet::applyScale(const GuideSet& guides, const ClumpParams& params)
 
     for (Strand& s : strands) {
         s.deformedPositions = s.positions;
-        s.applyScale(d(gen), params.scaleFactor);
+
+        float u = std::clamp(d(gen), -1.0f, 1.0f);
+        float eta = 1 + u * params.scaleFactor;
+        UT_Vector3 root = s.getRoot();
+
+        for (int i = 0; i < s.positions.size(); ++i) {
+            s.deformedPositions.at(i) = root + eta * (s.positions.at(i) - root);
+        }
     }
 }
 

@@ -114,6 +114,11 @@ public:
         return evalInt("selected_guide", 0, t);
     }
 
+    // show/hide scalp
+    bool getShowScalpEnabled(fpreal t = 0) const {
+        return evalInt("opt_show_scalp", 0, t) != 0;
+    }
+
     const char* getStatusMessage() const { return statusMessage.c_str(); }
 
 private:
