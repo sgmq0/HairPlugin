@@ -454,7 +454,8 @@ SOP_AuthoringPlugin::cookMySop(OP_Context& context)
                 hairParams.noiseFrequency = currentNoiseFrequency;
 
                 // Re-synthesize
-                synthesizedStrands = ClumpOperator::clumpFromGuides(guides, hairParams);
+                synthesizedStrands.applyOperators(guides, hairParams);
+                //synthesizedStrands = ClumpOperator::clumpFromGuides(guides, hairParams);
 
                 // Update cached values
                 cachedClumpRadius = currentRadius;

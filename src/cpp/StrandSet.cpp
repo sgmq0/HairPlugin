@@ -29,6 +29,22 @@ const Strand& StrandSet::getStrand(int index) const
     return strands[index];
 }
 
+void StrandSet::applyOperators(const GuideSet& guides, const ClumpParams& params)
+{
+    for (Strand& s : strands) {
+        // 1. TODO: Scale
+
+        // 2. TODO: Clump
+
+        // 3. TODO: Bend
+
+        // 4. TODO: Curl
+
+        // 5. TODO: Frizz
+
+    }
+}
+
 int StrandSet::getStrandCount() const
 {
     return static_cast<int>(strands.size());

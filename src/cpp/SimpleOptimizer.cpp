@@ -25,8 +25,8 @@ void SimpleOptimizer::step(
     params.clumpCount = clumpCount;
 
     // Store in both member and parameter reference
-    this->synthesizedStrands = ClumpOperator::clumpFromGuides(guides, params);
-    synthesizedStrands = this->synthesizedStrands;
+    /*this->synthesizedStrands = ClumpOperator::clumpFromGuides(guides, params);
+    synthesizedStrands = this->synthesizedStrands;*/
 
     // Compute new loss
     currentLoss = LossComputation::computeLoss(
