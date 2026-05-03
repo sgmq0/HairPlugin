@@ -53,18 +53,7 @@ public:
         return evalFloat("clump_profile", 0, t);
     }
 
-    // Twist operator
-    float getTwistAmount(fpreal t = 0) const
-    {
-        return evalFloat("twist_amount", 0, t);
-    }
-
-    float getTwistFrequency(fpreal t = 0) const
-    {
-        return evalFloat("twist_frequency", 0, t);
-    }
-
-    // Bend operator
+    // bend operator
     float getBendAngle(fpreal t = 0) const
     {
         return evalFloat("bend_angle", 0, t);
@@ -73,6 +62,27 @@ public:
     float getBendStart(fpreal t = 0) const
     {
         return evalFloat("bend_start", 0, t);
+    }
+
+    // curl operator
+    float getCurlRadius(fpreal t = 0) const
+    {
+        return evalFloat("curl_radius", 0, t);
+    }
+
+    float getCurlFrequency(fpreal t = 0) const
+    {
+        return evalFloat("curl_frequency", 0, t);
+    }
+
+    float getCurlRandomFrequency(fpreal t = 0) const
+    {
+        return evalFloat("curl_random_frequency", 0, t);
+    }
+
+    float getCurlStart(fpreal t = 0) const
+    {
+        return evalFloat("curl_start", 0, t);
     }
 
     // Noise operator
@@ -158,9 +168,11 @@ private:
     float cachedClumpProfile = -1.0f;
     float cachedBendAngle = -1.0f;
     float cachedBendStart = -1.0f;
+    float cachedCurlRadius = -1.0f;
+    float cachedCurlFrequency = -1.0f;
+    float cachedCurlRandomFrequency = -1.0f;
+    float cachedCurlStart = 1.0f;
 
-    float cachedTwistAmount = -1.0f;
-    float cachedTwistFrequency = -1.0f;
     float cachedNoiseAmplitude = -1.0f;
     float cachedNoiseFrequency = -1.0f;
 };

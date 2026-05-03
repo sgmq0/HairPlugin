@@ -22,6 +22,13 @@ public:
     void applyScale(const float scaleFactor);
     void applyClump(const GuideSet& guides, const float clumpProfile);
     void applyBend(const GuideSet& guides, const float bendAngle, const float bendStart);
+    void applyCurl(
+        const GuideSet& guides, 
+        const float curlRadius, 
+        const float curlFrequency,
+        const float curlRandomFrequency,
+        const float curlStart
+    );
 
     int getStrandCount() const;
     UT_BoundingBox getBounds() const;

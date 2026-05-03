@@ -57,25 +57,30 @@ static PRM_Range scaleFactorRange(PRM_RANGE_RESTRICTED, 0.0f, PRM_RANGE_UI, 2.0f
 static PRM_Name clumpProfileName("clump_profile", "Clump Profile");
 static PRM_Range clumpProfileRange(PRM_RANGE_RESTRICTED, 0.1f, PRM_RANGE_UI, 10.0f);
 
-static PRM_Name synthesizeHairBtn("synthesize_strands", "Synthesize Hair");
-
-// Twist operator
-static PRM_Name twistAmountName("twist_amount", "Twist Amount");
-static PRM_Range twistAmountRange(PRM_RANGE_RESTRICTED, 0.0f, PRM_RANGE_UI, 360.0f);
-static PRM_Name twistFrequencyName("twist_frequency", "Twist Frequency");
-static PRM_Range twistFrequencyRange(PRM_RANGE_RESTRICTED, 0.0f, PRM_RANGE_UI, 10.0f);
-
-// Bend operator
+// bend operator
 static PRM_Name bendAngleName("bend_angle", "Bend Angle");
 static PRM_Range bendAngleRange(PRM_RANGE_UI, -60.0f, PRM_RANGE_UI, 60.0f);
 static PRM_Name bendStartName("bend_start", "Bend Start");
 static PRM_Range bendStartRange(PRM_RANGE_RESTRICTED, 0.0f, PRM_RANGE_UI, 10.0f);
+
+// curl operator: radius, frequency, random frequency, curl start
+static PRM_Name curlRadiusName("curl_radius", "Curl Radius");
+static PRM_Range curlRadiusRange(PRM_RANGE_RESTRICTED, 0.0f, PRM_RANGE_UI, 10.0f);
+static PRM_Name curlFrequencyName("curl_frequency", "Curl Frequency");
+static PRM_Range curlFrequencyRange(PRM_RANGE_RESTRICTED, 0.0f, PRM_RANGE_UI, 10.0f);
+static PRM_Name curlRandomFrequencyName("curl_random_frequency", "Curl Random Frequency");
+static PRM_Range curlRandomFrequencyRange(PRM_RANGE_RESTRICTED, 0.0f, PRM_RANGE_UI, 10.0f);
+static PRM_Name curlStartName("curl_start", "Curl Start");
+static PRM_Range curlStartRange(PRM_RANGE_RESTRICTED, 0.0f, PRM_RANGE_UI, 10.0f);
 
 // Noise operator
 static PRM_Name noiseAmplitudeName("noise_amplitude", "Noise Amplitude");
 static PRM_Range noiseAmplitudeRange(PRM_RANGE_RESTRICTED, 0.0f, PRM_RANGE_UI, 1.0f);
 static PRM_Name noiseFrequencyName("noise_frequency", "Noise Frequency");
 static PRM_Range noiseFrequencyRange(PRM_RANGE_RESTRICTED, 0.1f, PRM_RANGE_UI, 10.0f);
+
+// synthesize hair button
+static PRM_Name synthesizeHairBtn("synthesize_strands", "Synthesize Hair");
 
 // Optimization
 static PRM_Name optEnableName("opt_enable", "Enable Optimization");
@@ -124,10 +129,12 @@ SOP_AuthoringPlugin::myTemplateList[] = {
     PRM_Template(PRM_FLT, 1, &bendAngleName, new PRM_Default(0.0), 0, &bendAngleRange),
     PRM_Template(PRM_FLT, 1, &bendStartName, new PRM_Default(0.0), 0, &bendStartRange),
 
-    // Twist parameters
-    PRM_Template(PRM_SEPARATOR, 1, new PRM_Name("sep_twist", "--- Twist ---")),
-    PRM_Template(PRM_FLT, 1, &twistAmountName, new PRM_Default(0.0), 0, &twistAmountRange),
-    PRM_Template(PRM_FLT, 1, &twistFrequencyName, new PRM_Default(1.0), 0, &twistFrequencyRange),
+    // curl parameters
+    PRM_Template(PRM_SEPARATOR, 1, new PRM_Name("sep_curl", "--- Curl ---")),
+    PRM_Template(PRM_FLT, 1, &curlRadiusName, new PRM_Default(0.0), 0, &curlRadiusRange),
+    PRM_Template(PRM_FLT, 1, &curlFrequencyName, new PRM_Default(0.0), 0, &curlFrequencyRange),
+    PRM_Template(PRM_FLT, 1, &curlRandomFrequencyName, new PRM_Default(0.0), 0, &curlRandomFrequencyRange),
+    PRM_Template(PRM_FLT, 1, &curlStartName, new PRM_Default(0.0), 0, &curlStartRange),
 
     // Noise parameters
     PRM_Template(PRM_SEPARATOR, 1, new PRM_Name("sep_noise", "--- Noise ---")),
@@ -427,9 +434,11 @@ SOP_AuthoringPlugin::cookMySop(OP_Context& context)
             float currentClumpProfile = getClumpProfile(now);
             float currentBendAngle = getBendAngle(now);
             float currentBendStart = getBendStart(now);
+            float currentCurlRadius = getCurlRadius(now);
+            float currentCurlFrequency = getCurlFrequency(now);
+            float currentCurlRandomFrequency = getCurlRandomFrequency(now);
+            float currentCurlStart = getCurlStart(now);
 
-            float currentTwistAmount = getTwistAmount(now);
-            float currentTwistFrequency = getTwistFrequency(now);
             float currentNoiseAmplitude = getNoiseAmplitude(now);
             float currentNoiseFrequency = getNoiseFrequency(now);
 
@@ -439,32 +448,43 @@ SOP_AuthoringPlugin::cookMySop(OP_Context& context)
             if (std::abs(currentScaleFactor - cachedScaleFactor) > 1e-6f || 
                 std::abs(currentClumpProfile - cachedClumpProfile) > 1e-6f ||
                 std::abs(currentBendAngle - cachedBendAngle) > 1e-6f ||
-                std::abs(currentBendStart - cachedBendStart) > 1e-6f
+                std::abs(currentBendStart - cachedBendStart) > 1e-6f || 
+                std::abs(currentCurlRadius - cachedCurlRadius) > 1e-6f ||
+                std::abs(currentCurlFrequency - cachedCurlFrequency) > 1e-6f ||
+                std::abs(currentCurlRandomFrequency - cachedCurlRandomFrequency) > 1e-6f ||
+                std::abs(currentCurlStart - cachedCurlStart) > 1e-6f
             ) {
                 // Parameters changed
                 hairParams.scaleFactor = currentScaleFactor;
                 hairParams.clumpProfile = currentClumpProfile;
                 hairParams.bendAngle = currentBendAngle;
                 hairParams.bendStart = currentBendStart;
+                hairParams.curlRadius = currentCurlRadius;
+                hairParams.curlFrequency = currentCurlFrequency;
+                hairParams.curlRandomFrequency = currentCurlRandomFrequency;
+                hairParams.curlStart = currentCurlStart;
 
                 // Re-synthesize
                 synthesizedStrands.applyScale(hairParams.scaleFactor);
                 synthesizedStrands.applyClump(guides, hairParams.clumpProfile);
                 synthesizedStrands.applyBend(guides, hairParams.bendAngle, hairParams.bendStart);
+                synthesizedStrands.applyCurl(
+                    guides, 
+                    hairParams.curlRadius, 
+                    hairParams.curlFrequency, 
+                    hairParams.curlRandomFrequency, 
+                    hairParams.curlStart
+                );
 
                 // Update cached values
                 cachedScaleFactor = currentScaleFactor;
                 cachedClumpProfile = currentClumpProfile;
                 cachedBendAngle = currentBendAngle;
                 cachedBendStart = currentBendStart;
-            }
-
-            // 4. TODO: Curl
-            if (true)
-            {
-                // Parameters changed
-                // Re-synthesize
-                // Update cached values
+                cachedCurlRadius = currentCurlRadius;
+                cachedCurlFrequency = currentCurlFrequency;
+                cachedCurlRandomFrequency = currentCurlRandomFrequency;
+                cachedCurlStart = currentCurlStart;
             }
 
             // 5. TODO: Frizz
@@ -573,9 +593,11 @@ void SOP_AuthoringPlugin::onSynthesizeHair(fpreal t) {
     hairParams.bendAngle = getBendAngle(t);
     hairParams.bendStart = getBendStart(t);
 
-    // Twist operator
-    hairParams.twistAmount = getTwistAmount(t);
-    hairParams.twistFrequency = getTwistFrequency(t);
+    // curl operator
+    hairParams.curlRadius = getCurlRadius(t);
+    hairParams.curlFrequency = getCurlFrequency(t);
+    hairParams.curlRandomFrequency = getCurlRandomFrequency(t);
+    hairParams.curlStart = getCurlStart(t);
 
     // Noise operator
     hairParams.noiseAmplitude = getNoiseAmplitude(t);
@@ -586,9 +608,11 @@ void SOP_AuthoringPlugin::onSynthesizeHair(fpreal t) {
     cachedClumpProfile = getClumpProfile(t);
     cachedBendAngle = getBendAngle(t);
     cachedBendStart = getBendStart(t);
+    cachedCurlRadius = getCurlRadius(t);
+    cachedCurlFrequency = getCurlFrequency(t);
+    cachedCurlRandomFrequency = getCurlRandomFrequency(t);
+    cachedCurlStart = getCurlStart(t);
 
-    cachedTwistAmount = getTwistAmount(t);
-    cachedTwistFrequency = getTwistFrequency(t);
     cachedNoiseAmplitude = getNoiseAmplitude(t);
     cachedNoiseFrequency = getNoiseFrequency(t);
 

@@ -91,10 +91,6 @@ float sigmoid(float x)
 
 void StrandSet::applyBend(const GuideSet& guides, const float bendAngle, const float bendStart)
 {
-    std::random_device rd{};
-    std::mt19937 gen{ rd() };
-    std::normal_distribution<float> d{ 0.0f, 1.0f };
-
     float bendAngleRadians = SYSdegToRad(bendAngle);
 
     for (Strand& s : strands) {
@@ -155,6 +151,77 @@ void StrandSet::applyBend(const GuideSet& guides, const float bendAngle, const f
             // sum segments to get vertices
             bendSegmentSum += bendSegment;
             pos.push_back(s.getRoot() + bendSegmentSum);
+        }
+
+        s.deformedPositions = pos;
+    }
+}
+
+void StrandSet::applyCurl(
+    const GuideSet& guides, 
+    const float curlRadius, 
+    const float curlFrequency, 
+    const float curlRandomFrequency, 
+    const float curlStart)
+{
+    for (Strand& s : strands) {
+        Strand guide = guides.getGuide(s.clusterID);
+
+        // find frequency
+        float frequency = fmax(3 * (curlFrequency + curlRandomFrequency * guide.curlNormal), 0.0f);
+
+        // set root position
+        std::vector<UT_Vector3> pos;
+        pos.push_back(s.getRoot());
+
+        float length = s.arcLength;
+        float freqSum = 0.0f;
+        float distance = 0.0f;
+        for (int j = 1; j < s.positions.size(); ++j) {
+            float dist = (s.deformedPositions.at(j) - s.deformedPositions.at(j - 1)).length();
+            distance += dist;
+            float normDist = distance / length;
+            
+            // compute phase
+            freqSum += dist * frequency;
+            float phase = freqSum + 3.9f * guide.curlUniform;
+
+            // increase radius towards tip
+            float radiusPrime = curlRadius * (0.43f + 0.79f * normDist);
+
+            // curl shape
+            float curlShapeX = radiusPrime * sin(2.0f * M_PI * phase);
+            float curlShapeY = radiusPrime * cos(2.0f * M_PI * phase);
+
+            // guide segment direction
+            UT_Vector3 direction = { 0.0f, 0.0f, 0.0f };
+            if (j == s.positions.size() - 1) { // if this is the last point
+                direction = (guide.positions.at(j) - guide.positions.at(j - 1));
+            }
+            else {
+                direction = (guide.positions.at(j + 1) - guide.positions.at(j - 1));
+            }
+            direction.normalize();
+
+            // normal
+            UT_Vector3 normal = { 0.0f, 0.0f, 0.0f };
+            if (abs(direction.x()) + abs(direction.y()) < 1e-4) {
+                normal = { 1.0f, 0.0f, 0.0f };
+            }
+            else {
+                normal = { direction.y(), -direction.x(), 0.0f };
+                normal.normalize();
+            }
+
+            // binormal
+            UT_Vector3 binormal = cross(direction, normal);
+
+            // start smooth indicator
+            float startSmooth = sigmoid(10.0f * (normDist - curlStart));
+
+            // add curl shape
+            UT_Vector3 deformedPos = s.deformedPositions.at(j) + startSmooth * (curlShapeX * normal + curlShapeY * binormal);
+            pos.push_back(deformedPos);
         }
 
         s.deformedPositions = pos;

@@ -16,8 +16,11 @@ struct ClumpParams
     float bendAngle;
     float bendStart;
 
-    float twistAmount;
-    float twistFrequency;
+    // curl
+    float curlRadius;
+    float curlFrequency;
+    float curlRandomFrequency;
+    float curlStart;
 
     float noiseAmplitude;
     float noiseFrequency;

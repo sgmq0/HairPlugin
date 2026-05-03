@@ -22,8 +22,10 @@ struct Strand
     std::vector<std::pair<float, int>> guides;  // (distance, index) n guide strands that influence it
     std::vector<std::pair<float, int>> guideWeights;    // (weight, index) vector of weights for the guides
 
-    // clump operatorrr
+    // operatorrr
     float bendRand;
+    float curlNormal;
+    float curlUniform;
 
     Strand();
     ~Strand();

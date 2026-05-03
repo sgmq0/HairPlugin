@@ -28,6 +28,7 @@ void GuideSet::extractFromStrands(
     std::random_device rd{};
     std::mt19937 gen{ rd() };
     std::normal_distribution<float> d{ 0.0f, 1.0f };
+    std::uniform_real_distribution<float> u{ 0.0f, 1.0f };
 
     // Group strands into clusters
     clusterMap.resize(strands.size());
@@ -91,8 +92,10 @@ void GuideSet::extractFromStrands(
         // Smooth the guide curve
         Strand smoothedGuide = GuideSmoothing::smoothGuideCurve(avgStrand, 10);
 
-        // set random value
+        // set random values
         smoothedGuide.bendRand = d(gen);
+        smoothedGuide.curlNormal = d(gen);
+        smoothedGuide.curlUniform = u(gen);
 
         guides.push_back(smoothedGuide);
     }
