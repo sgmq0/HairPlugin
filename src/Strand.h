@@ -35,7 +35,6 @@ struct Strand
     void computeGuideWeights(GuideSet* guideSet);
     UT_Vector3 getRoot() const;
 
-    void applyScale(float u, float scaleFactor);
 };
 
 #endif

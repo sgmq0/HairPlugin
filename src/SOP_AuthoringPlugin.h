@@ -41,25 +41,16 @@ public:
         return evalInt("num_guides", 0, t);
     }
 
-    float getClumpRadius(fpreal t = 0) const
-    {
-        return evalFloat("clump_radius", 0, t);
-    }
-
-    float getClumpTightness(fpreal t = 0) const
-    {
-        return evalFloat("clump_tightness", 0, t);
-    }
-
-    int getClumpCount(fpreal t = 0) const
-    {
-        return evalInt("clump_count", 0, t);
-    }
-
     // Scale operator
     float getScaleFactor(fpreal t = 0) const
     {
         return evalFloat("scale_factor", 0, t);
+    }
+
+    // clump operator
+    float getClumpProfile(fpreal t = 0) const
+    {
+        return evalFloat("clump_profile", 0, t);
     }
 
     // Twist operator
@@ -174,11 +165,8 @@ private:
 
     // Track parameter changes for auto-resynthesis
     float cachedScaleFactor = -1.0f;
+    float cachedClumpProfile = -1.0f;
 
-
-    float cachedClumpRadius = -1.0f;
-    float cachedClumpTightness = -1.0f;
-    int cachedClumpCount = -1;
     float cachedTwistAmount = -1.0f;
     float cachedTwistFrequency = -1.0f;
     float cachedBendMagnitude = -1.0f;

@@ -49,17 +49,15 @@ static PRM_Name numGuidesName("num_guides", "Number of Guides");
 static PRM_Range numGuidesRange(PRM_RANGE_RESTRICTED, 0, PRM_RANGE_UI, 1000);
 static PRM_Name	extractGuidesBtn("extract_guides", "Extract Guides");
 
-static PRM_Name radiusName("clump_radius", "Clump Radius");
-static PRM_Range radiusRange(PRM_RANGE_RESTRICTED, 0.1f, PRM_RANGE_UI, 10.0f);
-static PRM_Name tightnessName("clump_tightness", "Clump Tightness");
-static PRM_Range tightnessRange(PRM_RANGE_RESTRICTED, 0.0f, PRM_RANGE_UI, 1.0f);
-static PRM_Name countName("clump_count", "Clump Count");
-static PRM_Range countRange(PRM_RANGE_RESTRICTED, 1, PRM_RANGE_UI, 100);
-static PRM_Name synthesizeHairBtn("synthesize_strands", "Synthesize Hair");
-
-// Clump operator
+// scale operator
 static PRM_Name scaleFactorName("scale_factor", "Scale Factor");
 static PRM_Range scaleFactorRange(PRM_RANGE_RESTRICTED, 0.0f, PRM_RANGE_UI, 2.0f);
+
+// clump operator
+static PRM_Name clumpProfileName("clump_profile", "Clump Profile");
+static PRM_Range clumpProfileRange(PRM_RANGE_RESTRICTED, 0.1f, PRM_RANGE_UI, 10.0f);
+
+static PRM_Name synthesizeHairBtn("synthesize_strands", "Synthesize Hair");
 
 // Twist operator
 static PRM_Name twistAmountName("twist_amount", "Twist Amount");
@@ -123,9 +121,7 @@ SOP_AuthoringPlugin::myTemplateList[] = {
 
     // clump parameters
     PRM_Template(PRM_SEPARATOR, 1, new PRM_Name("sep_synth", "--- Clump ---")),
-    PRM_Template(PRM_FLT, 1, &radiusName, new PRM_Default(0.1), 0, &radiusRange),
-    PRM_Template(PRM_FLT, 1, &tightnessName, new PRM_Default(1.0), 0, &tightnessRange),
-    PRM_Template(PRM_INT, 1, &countName, new PRM_Default(80), 0, &countRange),
+    PRM_Template(PRM_FLT, 1, &clumpProfileName, new PRM_Default(0.1), 0, &clumpProfileRange),
 
     // Twist parameters
     PRM_Template(PRM_SEPARATOR, 1, new PRM_Name("sep_twist", "--- Twist ---")),
@@ -431,46 +427,33 @@ SOP_AuthoringPlugin::cookMySop(OP_Context& context)
         // Display based on state
         if (synthesisReady) {
             
-            // Check if any clump parameters have changed
-            float currentScaleFactor = getScaleFactor(now);
-            float currentRadius = getClumpRadius(now);
-            float currentTightness = getClumpTightness(now);
-            int currentCount = getClumpCount(now);
+            // Check if any operator parameters have changed
+            float currentScaleFactor = getScaleFactor(now); 
+            float currentClumpProfile = getClumpProfile(now);
+
             float currentTwistAmount = getTwistAmount(now);
             float currentTwistFrequency = getTwistFrequency(now);
             float currentBendMagnitude = getBendMagnitude(now);
             float currentNoiseAmplitude = getNoiseAmplitude(now);
             float currentNoiseFrequency = getNoiseFrequency(now);
 
-            // if SCALE changed, re-synthesize
-            if (std::abs(currentScaleFactor - cachedScaleFactor) > 1e-6f ) 
-            {
+            synthesizedStrands.setDeformedAsPos();
+
+            // if anything changed, re-synthesize
+            if (std::abs(currentScaleFactor - cachedScaleFactor) > 1e-6f  || 
+                std::abs(currentClumpProfile - cachedClumpProfile) > 1e-6f
+            ) {
                 // Parameters changed
                 hairParams.scaleFactor = currentScaleFactor;
+                hairParams.clumpProfile = currentClumpProfile;
 
                 // Re-synthesize
-                synthesizedStrands.applyScale(guides, hairParams);
+                synthesizedStrands.applyScale(guides, hairParams.scaleFactor);
+                synthesizedStrands.applyClump(guides, hairParams.clumpProfile);
 
                 // Update cached values
                 cachedScaleFactor = currentScaleFactor;
-            }
-
-            // 2. TODO: Clump
-            if (std::abs(currentRadius - cachedClumpRadius) > 1e-6f ||
-                std::abs(currentTightness - cachedClumpTightness) > 1e-6f ||
-                currentCount != cachedClumpCount) 
-            {
-                // Parameters changed
-                hairParams.clumpRadius = currentRadius;
-                hairParams.clumpTightness = currentTightness;
-                hairParams.clumpCount = currentCount;
-
-                // Re-synthesize
-
-                // Update cached values
-                cachedClumpRadius = currentRadius;
-                cachedClumpTightness = currentTightness;
-                cachedClumpCount = currentCount;
+                cachedClumpProfile = currentClumpProfile;
             }
 
             // 3. TODO: Bend
@@ -598,12 +581,12 @@ void SOP_AuthoringPlugin::onSynthesizeHair(fpreal t) {
     extractRootsFromInputStrands();
 
     // Build full clumping parameters
-    hairParams.clumpRadius = getClumpRadius(t);
-    hairParams.clumpTightness = getClumpTightness(t);
-    hairParams.clumpCount = getClumpCount(t);
 
     // scale operator
     hairParams.scaleFactor = getScaleFactor(t);
+
+    // clump operator
+    hairParams.clumpProfile = getClumpProfile(t);
 
     // Twist operator
     hairParams.twistAmount = getTwistAmount(t);
@@ -622,9 +605,8 @@ void SOP_AuthoringPlugin::onSynthesizeHair(fpreal t) {
 
     // Cache current parameters for change detection
     cachedScaleFactor = getScaleFactor(t);
-    cachedClumpRadius = getClumpRadius(t);
-    cachedClumpTightness = getClumpTightness(t);
-    cachedClumpCount = getClumpCount(t);
+    cachedClumpProfile = getClumpProfile(t);
+
     cachedTwistAmount = getTwistAmount(t);
     cachedTwistFrequency = getTwistFrequency(t);
     cachedBendMagnitude = getBendMagnitude(t);
@@ -633,14 +615,6 @@ void SOP_AuthoringPlugin::onSynthesizeHair(fpreal t) {
     cachedBendDirZ = getBendDirZ(t);
     cachedNoiseAmplitude = getNoiseAmplitude(t);
     cachedNoiseFrequency = getNoiseFrequency(t);
-
-    // Generate clumped strands from guides
-    /*synthesizedStrands = ClumpOperator::clumpFromGuides(guides, hairParams);
-
-    if (synthesizedStrands.getStrandCount() == 0) {
-        addMessage(SOP_MESSAGE, "Failed to synthesize hair");
-        return;
-    }*/
 
     needFirstSynthesis = true;
     synthesisReady = true;
@@ -1112,9 +1086,9 @@ void SOP_AuthoringPlugin::onOptimize(fpreal t) {
     addMessage(SOP_MESSAGE, "Starting optimization...");
 
     // Initialize optimizer with current parameters
-    float clumpRadius = getClumpRadius(t);
-    float clumpTightness = getClumpTightness(t);
-    int clumpCount = getClumpCount(t);
+    float clumpProfile = getClumpProfile(t);
+    float clumpTightness = 0.0f;
+    int clumpCount = 1;
 
     // Run optimization loop
     SimpleOptimizer optimizer;
@@ -1122,7 +1096,7 @@ void SOP_AuthoringPlugin::onOptimize(fpreal t) {
         // Step tweaks the parameters in the optimizer
         optimizer.step(
             guides,
-            clumpRadius,
+            clumpProfile,
             clumpTightness,
             clumpCount,
             inputStrands,

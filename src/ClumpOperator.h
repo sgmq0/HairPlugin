@@ -8,9 +8,7 @@ struct ClumpParams
 {
     float scaleFactor;
 
-    float clumpRadius;
-    float clumpTightness;
-    int clumpCount;
+    float clumpProfile;
 
     float twistAmount;
     float twistFrequency;

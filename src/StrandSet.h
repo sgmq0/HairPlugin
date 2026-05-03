@@ -5,6 +5,7 @@
 #include <UT/UT_BoundingBox.h>
 #include <vector>
 #include "ClumpOperator.h"
+#include "GuideSet.h"
 
 class StrandSet
 {
@@ -15,7 +16,11 @@ public:
     void addStrand(const Strand& strand);
     Strand& getStrand(int index);
     const Strand& getStrand(int index) const;
-    void applyScale(const GuideSet& guides, const ClumpParams& params);
+
+    // operators
+    void setDeformedAsPos();
+    void applyScale(const GuideSet& guides, const float scaleFactor);
+    void applyClump(const GuideSet& guides, const float clumpProfile);
 
     int getStrandCount() const;
     UT_BoundingBox getBounds() const;

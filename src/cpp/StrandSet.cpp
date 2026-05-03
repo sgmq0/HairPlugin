@@ -31,7 +31,14 @@ const Strand& StrandSet::getStrand(int index) const
     return strands[index];
 }
 
-void StrandSet::applyScale(const GuideSet& guides, const ClumpParams& params)
+void StrandSet::setDeformedAsPos() {
+    for (Strand& s : strands) {
+        s.deformedPositions.resize(s.positions.size());
+        s.deformedPositions = s.positions;
+    }
+}
+
+void StrandSet::applyScale(const GuideSet& guides, const float scaleFactor)
 {
     std::random_device rd{};
     std::mt19937 gen{ rd() };
@@ -41,12 +48,43 @@ void StrandSet::applyScale(const GuideSet& guides, const ClumpParams& params)
         s.deformedPositions = s.positions;
 
         float u = std::clamp(d(gen), -1.0f, 1.0f);
-        float eta = 1 + u * params.scaleFactor;
+        float eta = 1 + u * scaleFactor;
         UT_Vector3 root = s.getRoot();
 
         for (int i = 0; i < s.positions.size(); ++i) {
             s.deformedPositions.at(i) = root + eta * (s.positions.at(i) - root);
         }
+    }
+}
+
+void StrandSet::applyClump(const GuideSet& guides, const float clumpProfile)
+{
+    for (Strand& s : strands) {
+        Strand guide = guides.getGuide(s.clusterID);
+
+        // set root position
+        std::vector<UT_Vector3> pos;
+        pos.push_back(s.getRoot());
+
+        // recompute arc length from deformed positions
+        float length = 0.0f;
+        for (int i = 1; i < s.deformedPositions.size(); ++i)
+            length += (s.deformedPositions.at(i) - s.deformedPositions.at(i - 1)).length();
+
+        float dist = 0;
+        for (int i = 1; i < s.positions.size(); ++i) {
+            // length of i-th segment
+            float segmentLength = (s.deformedPositions.at(i) - s.deformedPositions.at(i-1)).length();
+            dist += segmentLength;
+
+            float normDist = dist / length;
+            float decayAmt = 1.0f - exp(-clumpProfile * normDist);
+
+            UT_Vector3 position = (1.0f - decayAmt) * s.deformedPositions.at(i) + decayAmt * guide.positions.at(i);
+            pos.push_back(position);
+        }
+
+        s.deformedPositions = pos;
     }
 }
 

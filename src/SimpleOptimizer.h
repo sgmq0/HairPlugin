@@ -14,7 +14,7 @@ public:
     // Perform one optimization step
     void step(
         GuideSet& guides,
-        float& clumpRadius,
+        float& clumpProfile,
         float& clumpTightness,
         int& clumpCount,
         const StrandSet& inputStrands,

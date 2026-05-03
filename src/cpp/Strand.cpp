@@ -209,14 +209,3 @@ UT_Vector3 Strand::getRoot() const
 {
     return positions.front();
 }
-
-void Strand::applyScale(float u, float scaleFactor)
-{
-    // do funny scale thing
-    float eta = 1 + u * scaleFactor;
-    UT_Vector3 root = getRoot();
-
-    for (int i = 0; i < positions.size(); ++i) {
-        deformedPositions.at(i) = root + eta * (positions.at(i) - root);
-    }
-}
