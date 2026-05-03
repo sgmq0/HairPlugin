@@ -228,6 +228,54 @@ void StrandSet::applyCurl(
     }
 }
 
+float perlinNoise1D(float x)
+{
+    float n = std::sin(x * 12.9898f) * 43758.5453f;
+    return std::fmod(n, 1.0f);
+}
+
+void StrandSet::applyFrizz(const float frizzAmplitude, const float frizzFrequency)
+{
+    std::random_device rd{};
+    std::mt19937 gen{ rd() };
+    std::normal_distribution<float> d{ 0.0f, 1.0f };
+
+    UT_Vector3 offset = {0.0f, 100.0f, 200.0f};
+
+    for (Strand& s : strands) {
+        float u = d(gen);
+
+        // set root position
+        std::vector<UT_Vector3> pos;
+        pos.push_back(s.getRoot());
+
+        float length = s.arcLength;
+        float distance = 0.0f;
+        for (int j = 1; j < s.positions.size(); ++j) {
+            float dist = (s.deformedPositions.at(j) - s.deformedPositions.at(j - 1)).length();
+            distance += dist;
+            float normDist = distance / length;
+
+            // random offset
+            float randomOffset = frizzFrequency * length * normDist + 10.0f * u;
+
+            // noise
+            float x = randomOffset + offset.x();
+            float y = randomOffset + offset.y();
+            float z = randomOffset + offset.z();
+            float fractalX = 0.666f * (perlinNoise1D(x) + 0.333f * perlinNoise1D(2.0f * x));
+            float fractalY = 0.666f * (perlinNoise1D(y) + 0.333f * perlinNoise1D(2.0f * y));
+            float fractalZ = 0.666f * (perlinNoise1D(z) + 0.333f * perlinNoise1D(2.0f * z));
+            UT_Vector3 fractal = { fractalX, fractalY, fractalZ };
+
+            UT_Vector3 deformedPos = s.deformedPositions.at(j) + 0.5f * frizzAmplitude * fractal;
+            pos.push_back(deformedPos);
+        }
+
+        s.deformedPositions = pos;
+    }
+}
+
 int StrandSet::getStrandCount() const
 {
     return static_cast<int>(strands.size());

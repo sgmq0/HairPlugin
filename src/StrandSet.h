@@ -29,6 +29,7 @@ public:
         const float curlRandomFrequency,
         const float curlStart
     );
+    void applyFrizz(const float frizzAmplitude, const float frizzFrequency);
 
     int getStrandCount() const;
     UT_BoundingBox getBounds() const;

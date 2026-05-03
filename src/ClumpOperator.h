@@ -22,8 +22,9 @@ struct ClumpParams
     float curlRandomFrequency;
     float curlStart;
 
-    float noiseAmplitude;
-    float noiseFrequency;
+    // frizz
+    float frizzAmplitude;
+    float frizzFrequency;
 };
 
 #endif

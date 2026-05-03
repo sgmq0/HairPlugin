@@ -65,7 +65,7 @@ static PRM_Range bendStartRange(PRM_RANGE_RESTRICTED, 0.0f, PRM_RANGE_UI, 10.0f)
 
 // curl operator: radius, frequency, random frequency, curl start
 static PRM_Name curlRadiusName("curl_radius", "Curl Radius");
-static PRM_Range curlRadiusRange(PRM_RANGE_RESTRICTED, 0.0f, PRM_RANGE_UI, 10.0f);
+static PRM_Range curlRadiusRange(PRM_RANGE_RESTRICTED, 0.0f, PRM_RANGE_UI, 1.0f);
 static PRM_Name curlFrequencyName("curl_frequency", "Curl Frequency");
 static PRM_Range curlFrequencyRange(PRM_RANGE_RESTRICTED, 0.0f, PRM_RANGE_UI, 10.0f);
 static PRM_Name curlRandomFrequencyName("curl_random_frequency", "Curl Random Frequency");
@@ -73,11 +73,11 @@ static PRM_Range curlRandomFrequencyRange(PRM_RANGE_RESTRICTED, 0.0f, PRM_RANGE_
 static PRM_Name curlStartName("curl_start", "Curl Start");
 static PRM_Range curlStartRange(PRM_RANGE_RESTRICTED, 0.0f, PRM_RANGE_UI, 10.0f);
 
-// Noise operator
-static PRM_Name noiseAmplitudeName("noise_amplitude", "Noise Amplitude");
-static PRM_Range noiseAmplitudeRange(PRM_RANGE_RESTRICTED, 0.0f, PRM_RANGE_UI, 1.0f);
-static PRM_Name noiseFrequencyName("noise_frequency", "Noise Frequency");
-static PRM_Range noiseFrequencyRange(PRM_RANGE_RESTRICTED, 0.1f, PRM_RANGE_UI, 10.0f);
+// frizz operator
+static PRM_Name frizzAmplitudeName("frizz_amplitude", "Frizz Amplitude");
+static PRM_Range frizzAmplitudeRange(PRM_RANGE_RESTRICTED, 0.0f, PRM_RANGE_UI, 1.0f);
+static PRM_Name frizzFrequencyName("frizz_frequency", "Frizz Frequency");
+static PRM_Range frizzFrequencyRange(PRM_RANGE_RESTRICTED, 0.1f, PRM_RANGE_UI, 10.0f);
 
 // synthesize hair button
 static PRM_Name synthesizeHairBtn("synthesize_strands", "Synthesize Hair");
@@ -136,10 +136,10 @@ SOP_AuthoringPlugin::myTemplateList[] = {
     PRM_Template(PRM_FLT, 1, &curlRandomFrequencyName, new PRM_Default(0.0), 0, &curlRandomFrequencyRange),
     PRM_Template(PRM_FLT, 1, &curlStartName, new PRM_Default(0.0), 0, &curlStartRange),
 
-    // Noise parameters
-    PRM_Template(PRM_SEPARATOR, 1, new PRM_Name("sep_noise", "--- Noise ---")),
-    PRM_Template(PRM_FLT, 1, &noiseAmplitudeName, new PRM_Default(0.0), 0, &noiseAmplitudeRange),
-    PRM_Template(PRM_FLT, 1, &noiseFrequencyName, new PRM_Default(1.0), 0, &noiseFrequencyRange),
+    // frizz parameters
+    PRM_Template(PRM_SEPARATOR, 1, new PRM_Name("sep_frizz", "--- Frizz ---")),
+    PRM_Template(PRM_FLT, 1, &frizzAmplitudeName, new PRM_Default(0.0), 0, &frizzAmplitudeRange),
+    PRM_Template(PRM_FLT, 1, &frizzFrequencyName, new PRM_Default(0.0), 0, &frizzFrequencyRange),
 
     PRM_Template(PRM_CALLBACK, 1, &synthesizeHairBtn, nullptr, 0, nullptr, &SOP_AuthoringPlugin::onSynthesizeHairCallback),
 
@@ -438,9 +438,8 @@ SOP_AuthoringPlugin::cookMySop(OP_Context& context)
             float currentCurlFrequency = getCurlFrequency(now);
             float currentCurlRandomFrequency = getCurlRandomFrequency(now);
             float currentCurlStart = getCurlStart(now);
-
-            float currentNoiseAmplitude = getNoiseAmplitude(now);
-            float currentNoiseFrequency = getNoiseFrequency(now);
+            float currentFrizzAmplitude = getFrizzAmplitude(now);
+            float currentFrizzFrequency = getFrizzFrequency(now);
 
             synthesizedStrands.setDeformedAsPos();
 
@@ -452,7 +451,9 @@ SOP_AuthoringPlugin::cookMySop(OP_Context& context)
                 std::abs(currentCurlRadius - cachedCurlRadius) > 1e-6f ||
                 std::abs(currentCurlFrequency - cachedCurlFrequency) > 1e-6f ||
                 std::abs(currentCurlRandomFrequency - cachedCurlRandomFrequency) > 1e-6f ||
-                std::abs(currentCurlStart - cachedCurlStart) > 1e-6f
+                std::abs(currentCurlStart - cachedCurlStart) > 1e-6f || 
+                std::abs(currentFrizzAmplitude - cachedFrizzAmplitude) > 1e-6f ||
+                std::abs(currentFrizzFrequency - cachedFrizzFrequency) > 1e-6f
             ) {
                 // Parameters changed
                 hairParams.scaleFactor = currentScaleFactor;
@@ -463,6 +464,8 @@ SOP_AuthoringPlugin::cookMySop(OP_Context& context)
                 hairParams.curlFrequency = currentCurlFrequency;
                 hairParams.curlRandomFrequency = currentCurlRandomFrequency;
                 hairParams.curlStart = currentCurlStart;
+                hairParams.frizzAmplitude = currentFrizzAmplitude;
+                hairParams.frizzFrequency = currentFrizzFrequency;
 
                 // Re-synthesize
                 synthesizedStrands.applyScale(hairParams.scaleFactor);
@@ -475,6 +478,7 @@ SOP_AuthoringPlugin::cookMySop(OP_Context& context)
                     hairParams.curlRandomFrequency, 
                     hairParams.curlStart
                 );
+                synthesizedStrands.applyFrizz(hairParams.frizzAmplitude, hairParams.frizzFrequency);
 
                 // Update cached values
                 cachedScaleFactor = currentScaleFactor;
@@ -485,21 +489,8 @@ SOP_AuthoringPlugin::cookMySop(OP_Context& context)
                 cachedCurlFrequency = currentCurlFrequency;
                 cachedCurlRandomFrequency = currentCurlRandomFrequency;
                 cachedCurlStart = currentCurlStart;
-            }
-
-            // 5. TODO: Frizz
-            if (std::abs(currentNoiseAmplitude - cachedNoiseAmplitude) > 1e-6f ||
-                std::abs(currentNoiseFrequency - cachedNoiseFrequency) > 1e-6f)
-            {
-                // Parameters changed
-                hairParams.noiseAmplitude = currentNoiseAmplitude;
-                hairParams.noiseFrequency = currentNoiseFrequency;
-
-                // Re-synthesize
-
-                // Update cached values
-                cachedNoiseAmplitude = currentNoiseAmplitude;
-                cachedNoiseFrequency = currentNoiseFrequency;
+                cachedFrizzAmplitude = currentFrizzAmplitude;
+                cachedFrizzFrequency = currentFrizzFrequency;
             }
 
             // Display synthesized strands
@@ -600,8 +591,8 @@ void SOP_AuthoringPlugin::onSynthesizeHair(fpreal t) {
     hairParams.curlStart = getCurlStart(t);
 
     // Noise operator
-    hairParams.noiseAmplitude = getNoiseAmplitude(t);
-    hairParams.noiseFrequency = getNoiseFrequency(t);
+    hairParams.frizzAmplitude = getFrizzAmplitude(t);
+    hairParams.frizzFrequency = getFrizzFrequency(t);
 
     // Cache current parameters for change detection
     cachedScaleFactor = getScaleFactor(t);
@@ -613,8 +604,8 @@ void SOP_AuthoringPlugin::onSynthesizeHair(fpreal t) {
     cachedCurlRandomFrequency = getCurlRandomFrequency(t);
     cachedCurlStart = getCurlStart(t);
 
-    cachedNoiseAmplitude = getNoiseAmplitude(t);
-    cachedNoiseFrequency = getNoiseFrequency(t);
+    cachedFrizzAmplitude = getFrizzAmplitude(t);
+    cachedFrizzFrequency = getFrizzFrequency(t);
 
     needFirstSynthesis = true;
     synthesisReady = true;

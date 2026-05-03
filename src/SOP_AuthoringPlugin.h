@@ -85,15 +85,15 @@ public:
         return evalFloat("curl_start", 0, t);
     }
 
-    // Noise operator
-    float getNoiseAmplitude(fpreal t = 0) const
+    // frizz operator
+    float getFrizzAmplitude(fpreal t = 0) const
     {
-        return evalFloat("noise_amplitude", 0, t);
+        return evalFloat("frizz_amplitude", 0, t);
     }
 
-    float getNoiseFrequency(fpreal t = 0) const
+    float getFrizzFrequency(fpreal t = 0) const
     {
-        return evalFloat("noise_frequency", 0, t);
+        return evalFloat("frizz_frequency", 0, t);
     }
 
     // Week 5 - Cluster Visualization getters
@@ -172,9 +172,8 @@ private:
     float cachedCurlFrequency = -1.0f;
     float cachedCurlRandomFrequency = -1.0f;
     float cachedCurlStart = 1.0f;
-
-    float cachedNoiseAmplitude = -1.0f;
-    float cachedNoiseFrequency = -1.0f;
+    float cachedFrizzAmplitude = -1.0f;
+    float cachedFrizzFrequency = -1.0f;
 };
 
 #endif
