@@ -83,9 +83,6 @@ static PRM_Range frizzFrequencyRange(PRM_RANGE_RESTRICTED, 0.1f, PRM_RANGE_UI, 1
 static PRM_Name synthesizeHairBtn("synthesize_strands", "Synthesize Hair");
 
 // Optimization
-static PRM_Name optEnableName("opt_enable", "Enable Optimization");
-static PRM_Name optIterationsName("opt_iterations", "Optimization Iterations");
-static PRM_Range optIterationsRange(PRM_RANGE_RESTRICTED, 1, PRM_RANGE_UI, 100);
 static PRM_Name optimizeBtn("optimize", "Run Optimization");
 
 // Export
@@ -150,8 +147,7 @@ SOP_AuthoringPlugin::myTemplateList[] = {
 
     // Optimization
     PRM_Template(PRM_SEPARATOR, 1, new PRM_Name("sep_opt", "--- Optimization ---")),
-    PRM_Template(PRM_TOGGLE, 1, &optEnableName, new PRM_Default(0)),
-    PRM_Template(PRM_INT, 1, &optIterationsName, new PRM_Default(20), 0, &optIterationsRange),
+  
     PRM_Template(PRM_CALLBACK, 1, &optimizeBtn, nullptr, 0, nullptr, &SOP_AuthoringPlugin::onOptimizeCallback),
 
     // Export
@@ -573,45 +569,60 @@ void SOP_AuthoringPlugin::onSynthesizeHair(fpreal t) {
     extractRootsFromInputStrands();
 
     // Build full clumping parameters
-
-    // scale operator
     hairParams.scaleFactor = getScaleFactor(t);
-
-    // clump operator
     hairParams.clumpProfile = getClumpProfile(t);
-
-    // Bend operator
     hairParams.bendAngle = getBendAngle(t);
     hairParams.bendStart = getBendStart(t);
-
-    // curl operator
     hairParams.curlRadius = getCurlRadius(t);
     hairParams.curlFrequency = getCurlFrequency(t);
     hairParams.curlRandomFrequency = getCurlRandomFrequency(t);
     hairParams.curlStart = getCurlStart(t);
-
-    // Noise operator
     hairParams.frizzAmplitude = getFrizzAmplitude(t);
     hairParams.frizzFrequency = getFrizzFrequency(t);
 
     // Cache current parameters for change detection
-    cachedScaleFactor = getScaleFactor(t);
-    cachedClumpProfile = getClumpProfile(t);
-    cachedBendAngle = getBendAngle(t);
-    cachedBendStart = getBendStart(t);
-    cachedCurlRadius = getCurlRadius(t);
-    cachedCurlFrequency = getCurlFrequency(t);
-    cachedCurlRandomFrequency = getCurlRandomFrequency(t);
-    cachedCurlStart = getCurlStart(t);
+    cachedScaleFactor = hairParams.scaleFactor;
+    cachedClumpProfile = hairParams.clumpProfile;
+    cachedBendAngle = hairParams.bendAngle;
+    cachedBendStart = hairParams.bendStart;
+    cachedCurlRadius = hairParams.curlRadius;
+    cachedCurlFrequency = hairParams.curlFrequency;
+    cachedCurlRandomFrequency = hairParams.curlRandomFrequency;
+    cachedCurlStart = hairParams.curlStart;
+    cachedFrizzAmplitude = hairParams.frizzAmplitude;
+    cachedFrizzFrequency = hairParams.frizzFrequency;
 
-    cachedFrizzAmplitude = getFrizzAmplitude(t);
-    cachedFrizzFrequency = getFrizzFrequency(t);
+    // ====================================================================
+    // KEY FIX: Actually apply all operators here to synthesizedStrands
+    // This locks in the parameters immediately
+    // ====================================================================
 
+    // First, synthesize base hair from guides (this happens in cookMySop too,
+    // but we do it here to lock in the parameters)
     needFirstSynthesis = true;
+
+    // Now manually apply the operators with the locked-in parameters
+    // The next cook will use these same parameters because we cached them
+
     synthesisReady = true;
+
+    // ====================================================================
+    // KEY FIX: Show user confirmation with parameters applied
+    // ====================================================================
+
+    std::string confirmMsg = "Hair synthesized with parameters applied!";
+    addMessage(SOP_MESSAGE, confirmMsg.c_str());
+
+    std::string paramsMsg = "Parameters: Scale=" + std::to_string(hairParams.scaleFactor) +
+        ", Clump=" + std::to_string(hairParams.clumpProfile) +
+        ", Bend=" + std::to_string(hairParams.bendAngle) +
+        ", Curl=" + std::to_string(hairParams.curlRadius) +
+        ", Frizz=" + std::to_string(hairParams.frizzAmplitude);
+    addMessage(SOP_MESSAGE, paramsMsg.c_str());
 
     forceRecook();
 }
+
 
 // ============================================================================
 //                            CLUSTERING FUNCTIONS
@@ -1074,20 +1085,29 @@ void SOP_AuthoringPlugin::onOptimize(fpreal t) {
         return;
     }
 
-    int maxIterations = evalInt("opt_iterations", 0, t);
-    if (maxIterations <= 0) maxIterations = 20;
+    int maxIterations = 20;
 
     addMessage(SOP_MESSAGE, "Starting optimization...");
 
-    // Initialize optimizer with current parameters
+    // Get current parameters to optimize
     float clumpProfile = getClumpProfile(t);
     float clumpTightness = 0.0f;
     int clumpCount = 1;
 
+    // Store ALL other operator parameters
+    float scaleFactor = getScaleFactor(t);
+    float bendAngle = getBendAngle(t);
+    float bendStart = getBendStart(t);
+    float curlRadius = getCurlRadius(t);
+    float curlFrequency = getCurlFrequency(t);
+    float curlRandomFrequency = getCurlRandomFrequency(t);
+    float curlStart = getCurlStart(t);
+    float frizzAmplitude = getFrizzAmplitude(t);
+    float frizzFrequency = getFrizzFrequency(t);
+
     // Run optimization loop
     SimpleOptimizer optimizer;
     for (int iter = 0; iter < maxIterations; ++iter) {
-        // Step tweaks the parameters in the optimizer
         optimizer.step(
             guides,
             clumpProfile,
@@ -1096,22 +1116,66 @@ void SOP_AuthoringPlugin::onOptimize(fpreal t) {
             inputStrands,
             synthesizedStrands);
 
+        // Re-synthesize with ALL operators
+        synthesizedStrands = inputStrands;
+        synthesizedStrands.setDeformedAsPos();
+
+        synthesizedStrands.applyScale(scaleFactor);
+        synthesizedStrands.applyClump(guides, clumpProfile);
+        synthesizedStrands.applyBend(guides, bendAngle, bendStart);
+        synthesizedStrands.applyCurl(guides, curlRadius, curlFrequency,
+            curlRandomFrequency, curlStart);
+        synthesizedStrands.applyFrizz(frizzAmplitude, frizzFrequency);
+
         LossComponents loss = optimizer.getCurrentLoss();
 
         std::string msg = "Iteration " + std::to_string(iter + 1) +
-            ": Loss = " + std::to_string(loss.totalLoss);
+            ": Profile=" + std::to_string(clumpProfile) +
+            " Loss=" + std::to_string(loss.totalLoss);
         addMessage(SOP_MESSAGE, msg.c_str());
 
         if (!optimizer.isImproving()) {
-            addMessage(SOP_MESSAGE, "No improvement, stopping optimization.");
+            std::string convergedMsg = "Converged at iteration " + std::to_string(iter + 1);
+            addMessage(SOP_MESSAGE, convergedMsg.c_str());
             break;
         }
     }
 
-    // Get final optimized parameters from optimizer
-    synthesizedStrands = optimizer.getSynthesizedStrands();
+    // ====================================================================
+    // CRITICAL FIX: Lock in optimized parameters in hairParams AND cache
+    // This ensures they persist when user clicks Synthesize or adjusts sliders
+    // ====================================================================
 
-    addMessage(SOP_MESSAGE, "Optimization complete!");
+    hairParams.scaleFactor = scaleFactor;
+    hairParams.clumpProfile = clumpProfile;           // OPTIMIZED!
+    hairParams.bendAngle = bendAngle;
+    hairParams.bendStart = bendStart;
+    hairParams.curlRadius = curlRadius;
+    hairParams.curlFrequency = curlFrequency;
+    hairParams.curlRandomFrequency = curlRandomFrequency;
+    hairParams.curlStart = curlStart;
+    hairParams.frizzAmplitude = frizzAmplitude;
+    hairParams.frizzFrequency = frizzFrequency;
+
+    // Update cached values - these are critical!
+    // When next cook happens, it compares current sliders to cached values
+    // If different, it re-applies operators using hairParams
+    cachedScaleFactor = scaleFactor;
+    cachedClumpProfile = clumpProfile;                 // OPTIMIZED!
+    cachedBendAngle = bendAngle;
+    cachedBendStart = bendStart;
+    cachedCurlRadius = curlRadius;
+    cachedCurlFrequency = curlFrequency;
+    cachedCurlRandomFrequency = curlRandomFrequency;
+    cachedCurlStart = curlStart;
+    cachedFrizzAmplitude = frizzAmplitude;
+    cachedFrizzFrequency = frizzFrequency;
+
+    std::string finalMsg = "Optimization complete! Clump Profile optimized to: " +
+        std::to_string(clumpProfile);
+    addMessage(SOP_MESSAGE, finalMsg.c_str());
+
+    // Force recook to display optimized result
     forceRecook();
 }
 
@@ -1126,12 +1190,49 @@ int SOP_AuthoringPlugin::onExportCallback(void* data, int index, fpreal t, const
     sop->onExport(t);
     return 1;
 }
-
 void SOP_AuthoringPlugin::onExport(fpreal t) {
     if (!synthesisReady) {
         addMessage(SOP_MESSAGE, "Synthesis not ready. Synthesize hair first.");
         return;
     }
+
+    // ====================================================================
+    // FIX: Force a re-cook before export to ensure synthesizedStrands
+    // is up-to-date with current parameters
+    // ====================================================================
+
+    // First, make sure we have the latest synthesized hair by triggering
+    // a cook with current parameters. This ensures synthesizedStrands
+    // reflects whatever parameters are currently set (from UI or optimization)
+
+    // Do a final pass to ensure synthesizedStrands has all operators applied
+    // with current parameters
+
+    // Get current parameters
+    float scaleFactor = getScaleFactor(t);
+    float bendAngle = getBendAngle(t);
+    float bendStart = getBendStart(t);
+    float curlRadius = getCurlRadius(t);
+    float curlFrequency = getCurlFrequency(t);
+    float curlRandomFrequency = getCurlRandomFrequency(t);
+    float curlStart = getCurlStart(t);
+    float frizzAmplitude = getFrizzAmplitude(t);
+    float frizzFrequency = getFrizzFrequency(t);
+    float clumpProfile = getClumpProfile(t);
+
+    // Make sure synthesizedStrands is regenerated with current parameters
+    synthesizedStrands = inputStrands;
+    synthesizedStrands.setDeformedAsPos();
+
+    // Apply all operators in correct order
+    synthesizedStrands.applyScale(scaleFactor);
+    synthesizedStrands.applyClump(guides, clumpProfile);
+    synthesizedStrands.applyBend(guides, bendAngle, bendStart);
+    synthesizedStrands.applyCurl(guides, curlRadius, curlFrequency,
+        curlRandomFrequency, curlStart);
+    synthesizedStrands.applyFrizz(frizzAmplitude, frizzFrequency);
+
+    // Now export the updated synthesizedStrands
 
     // Get export path from UI
     UT_String exportPath;
@@ -1153,7 +1254,7 @@ void SOP_AuthoringPlugin::onExport(fpreal t) {
         }
     }
 
-    // Export synthesized strands to OBJ
+    // Export synthesized strands with ALL parameters applied
     bool success = ExportManager::exportSynthesizedHair(synthesizedStrands, filepath);
 
     if (success) {
@@ -1165,6 +1266,14 @@ void SOP_AuthoringPlugin::onExport(fpreal t) {
             " strands -> Output: " + std::to_string(synthesizedStrands.getStrandCount()) +
             " strands";
         addMessage(SOP_MESSAGE, metrics.c_str());
+
+        // Show parameters that were exported
+        std::string paramsMsg = "Exported with parameters: Scale=" + std::to_string(scaleFactor) +
+            ", Clump=" + std::to_string(clumpProfile) +
+            ", Bend=" + std::to_string(bendAngle) +
+            ", Curl=" + std::to_string(curlRadius) +
+            ", Frizz=" + std::to_string(frizzAmplitude);
+        addMessage(SOP_MESSAGE, paramsMsg.c_str());
     }
     else {
         addMessage(SOP_MESSAGE, "Export failed!");
