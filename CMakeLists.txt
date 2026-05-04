@@ -35,7 +35,7 @@ src/cpp/Strand.cpp
 src/cpp/StrandSet.cpp
 src/cpp/GuideSet.cpp
 src/cpp/FeatureComputation.cpp
-src/cpp/ClumpOperator.cpp
+
 src/cpp/ClusterVisualization.cpp
 src/cpp/LossComputation.cpp
 src/cpp/SimpleOptimizer.cpp
