@@ -29,9 +29,9 @@ bool ExportManager::exportSynthesizedHair(
     // Convert each strand to a polyline
     for (int i = 0; i < strands.getStrandCount(); ++i) {
         const Strand& strand = strands.getStrand(i);
-        
-        if (strand.positions.size() >= 2) {
-            polylines.push_back(strand.positions);
+
+        if (strand.deformedPositions.size() >= 2) {
+            polylines.push_back(strand.deformedPositions);
         }
     }
 

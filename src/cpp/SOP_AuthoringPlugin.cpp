@@ -440,17 +440,7 @@ SOP_AuthoringPlugin::cookMySop(OP_Context& context)
             synthesizedStrands.setDeformedAsPos();
 
             // if anything changed, re-synthesize
-            if (std::abs(currentScaleFactor - cachedScaleFactor) > 1e-6f || 
-                std::abs(currentClumpProfile - cachedClumpProfile) > 1e-6f ||
-                std::abs(currentBendAngle - cachedBendAngle) > 1e-6f ||
-                std::abs(currentBendStart - cachedBendStart) > 1e-6f || 
-                std::abs(currentCurlRadius - cachedCurlRadius) > 1e-6f ||
-                std::abs(currentCurlFrequency - cachedCurlFrequency) > 1e-6f ||
-                std::abs(currentCurlRandomFrequency - cachedCurlRandomFrequency) > 1e-6f ||
-                std::abs(currentCurlStart - cachedCurlStart) > 1e-6f || 
-                std::abs(currentFrizzAmplitude - cachedFrizzAmplitude) > 1e-6f ||
-                std::abs(currentFrizzFrequency - cachedFrizzFrequency) > 1e-6f
-            ) {
+           
                 // Parameters changed
                 hairParams.scaleFactor = currentScaleFactor;
                 hairParams.clumpProfile = currentClumpProfile;
@@ -487,7 +477,7 @@ SOP_AuthoringPlugin::cookMySop(OP_Context& context)
                 cachedCurlStart = currentCurlStart;
                 cachedFrizzAmplitude = currentFrizzAmplitude;
                 cachedFrizzFrequency = currentFrizzFrequency;
-            }
+            
 
             // Display synthesized strands
             displayStrandSet(gdp, synthesizedStrands, false);
@@ -1177,6 +1167,7 @@ void SOP_AuthoringPlugin::onOptimize(fpreal t) {
 
     // Force recook to display optimized result
     forceRecook();
+   
 }
 
 // ============================================================================
@@ -1195,44 +1186,6 @@ void SOP_AuthoringPlugin::onExport(fpreal t) {
         addMessage(SOP_MESSAGE, "Synthesis not ready. Synthesize hair first.");
         return;
     }
-
-    // ====================================================================
-    // FIX: Force a re-cook before export to ensure synthesizedStrands
-    // is up-to-date with current parameters
-    // ====================================================================
-
-    // First, make sure we have the latest synthesized hair by triggering
-    // a cook with current parameters. This ensures synthesizedStrands
-    // reflects whatever parameters are currently set (from UI or optimization)
-
-    // Do a final pass to ensure synthesizedStrands has all operators applied
-    // with current parameters
-
-    // Get current parameters
-    float scaleFactor = getScaleFactor(t);
-    float bendAngle = getBendAngle(t);
-    float bendStart = getBendStart(t);
-    float curlRadius = getCurlRadius(t);
-    float curlFrequency = getCurlFrequency(t);
-    float curlRandomFrequency = getCurlRandomFrequency(t);
-    float curlStart = getCurlStart(t);
-    float frizzAmplitude = getFrizzAmplitude(t);
-    float frizzFrequency = getFrizzFrequency(t);
-    float clumpProfile = getClumpProfile(t);
-
-    // Make sure synthesizedStrands is regenerated with current parameters
-    synthesizedStrands = inputStrands;
-    synthesizedStrands.setDeformedAsPos();
-
-    // Apply all operators in correct order
-    synthesizedStrands.applyScale(scaleFactor);
-    synthesizedStrands.applyClump(guides, clumpProfile);
-    synthesizedStrands.applyBend(guides, bendAngle, bendStart);
-    synthesizedStrands.applyCurl(guides, curlRadius, curlFrequency,
-        curlRandomFrequency, curlStart);
-    synthesizedStrands.applyFrizz(frizzAmplitude, frizzFrequency);
-
-    // Now export the updated synthesizedStrands
 
     // Get export path from UI
     UT_String exportPath;
@@ -1254,7 +1207,37 @@ void SOP_AuthoringPlugin::onExport(fpreal t) {
         }
     }
 
-    // Export synthesized strands with ALL parameters applied
+    // ====================================================================
+    // CRITICAL: Rebuild synthesizedStrands from scratch with current parameters
+    // This ensures we export hair with all operators applied
+    // Do NOT rely on the cached synthesizedStrands from viewport
+    // ====================================================================
+
+    // Get current parameters
+    float scaleFactor = getScaleFactor(t);
+    float clumpProfile = getClumpProfile(t);
+    float bendAngle = getBendAngle(t);
+    float bendStart = getBendStart(t);
+    float curlRadius = getCurlRadius(t);
+    float curlFrequency = getCurlFrequency(t);
+    float curlRandomFrequency = getCurlRandomFrequency(t);
+    float curlStart = getCurlStart(t);
+    float frizzAmplitude = getFrizzAmplitude(t);
+    float frizzFrequency = getFrizzFrequency(t);
+
+    // Rebuild synthesizedStrands from input with all operators
+    synthesizedStrands = inputStrands;
+    synthesizedStrands.setDeformedAsPos();
+
+    // Apply all operators in order
+    synthesizedStrands.applyScale(scaleFactor);
+    synthesizedStrands.applyClump(guides, clumpProfile);
+    synthesizedStrands.applyBend(guides, bendAngle, bendStart);
+    synthesizedStrands.applyCurl(guides, curlRadius, curlFrequency,
+        curlRandomFrequency, curlStart);
+    synthesizedStrands.applyFrizz(frizzAmplitude, frizzFrequency);
+
+    // Now export the synthesized strands with all operators applied
     bool success = ExportManager::exportSynthesizedHair(synthesizedStrands, filepath);
 
     if (success) {
